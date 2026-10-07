@@ -14,6 +14,7 @@
 ## 📚 Deliverable Documentation
 - 🏛️ **[System Architecture & Database Design Guide](docs/ARCHITECTURE.md)** — In-depth architectural blueprint, user personas, complete database schema, assessment sequence diagram, and Row Level Security (RLS) rationale.
 - 🤖 **[Gemini AI Integration & Security Architecture](docs/AI_INTEGRATION.md)** — Detailed breakdown of the 3-step pipeline (`extractProfile`, `matchSchemes`, `buildChecklist`), prompt hardening, Zod validation & backoff retry strategy, anti-hallucination catalog grounding, and secret safety.
+- 🚀 **[Production Deployment & Hosting Guide](DEPLOYMENT.md)** — End-to-end production setup covering Supabase PostgreSQL, migration, idempotent seeding, Render backend setup, Vercel frontend, strict CORS lockdown, and live smoke test.
 
 ---
 

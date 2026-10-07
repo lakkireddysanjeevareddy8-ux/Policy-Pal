@@ -24,20 +24,40 @@ const app = express();
 
 // Security Headers & CORS
 app.use(helmet());
+
+const clientOrigin = process.env.CLIENT_ORIGIN || process.env.CLIENT_URL;
+const isProd = process.env.NODE_ENV === 'production';
+
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
-      const allowedOrigins = [
-        process.env.CLIENT_URL || 'http://localhost:5173',
+
+      // Localhost origins allowed for development & testing
+      const devOrigins = [
         'http://localhost:5173',
         'http://127.0.0.1:5173',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
       ];
-      if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+      if (devOrigins.includes(origin)) {
         return callback(null, true);
       }
-      return callback(null, true); // Allow during development
+
+      // Strict production check: allow CLIENT_ORIGIN (or Vercel preview domains if CLIENT_ORIGIN matches)
+      if (clientOrigin) {
+        if (origin === clientOrigin) return callback(null, true);
+        if (clientOrigin.includes('vercel.app') && origin.endsWith('.vercel.app')) {
+          return callback(null, true);
+        }
+      }
+
+      if (!isProd && !clientOrigin) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS policy blocked access from origin: ${origin}`));
     },
     credentials: true,
   })
