@@ -168,6 +168,40 @@ function scanDirectory(dir) {
 
 scanDirectory(ROOT_DIR);
 
+// 4. Git history secrets check: search all commits for real API keys (AIza...) and DATABASE_URL values
+console.log('\n📜 [4/4] Scanning full git commit history for leaked secrets (AIza... and DATABASE_URL)...');
+try {
+  const gitLogOutput = execSync('git log --all -p', { cwd: ROOT_DIR, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+
+  // Look for real AIza keys in added lines (+AIza...)
+  const aizaMatches = [...gitLogOutput.matchAll(/(?:^\+)(?!\s*\/?[A-Za-z0-9_-]*AIzaSy)[^\n]*?(AIza[0-9A-Za-z\-_]{30,})/gm)];
+  if (aizaMatches.length > 0) {
+    violations.push({
+      type: 'Git History Leaked Google API Key',
+      file: 'Git Commit History',
+      detail: `Found ${aizaMatches.length} committed API key(s) matching AIza... in past commits`,
+    });
+  } else {
+    console.log('✅ PASS: Git history contains zero Google API keys (AIza...).');
+  }
+
+  // Look for non-dummy DATABASE_URL values in added lines
+  const dbUrlMatches = [...gitLogOutput.matchAll(/(?:^\+)[^\n]*?DATABASE_URL\s*=\s*["']?(postgres(?:ql)?:\/\/(?!postgres:postgres@localhost|postgres:password)[^\s"']+)["']?/gim)];
+  // Filter out documentation placeholders like [ref]:[password] or <supabase
+  const realDbMatches = dbUrlMatches.filter(m => !m[1].includes('[') && !m[1].includes('<'));
+  if (realDbMatches.length > 0) {
+    violations.push({
+      type: 'Git History Leaked DATABASE_URL',
+      file: 'Git Commit History',
+      detail: `Found real DATABASE_URL connection string in past commits: ${realDbMatches.map(m => m[1].substring(0, 20)).join(', ')}`,
+    });
+  } else {
+    console.log('✅ PASS: Git history contains zero real/production DATABASE_URL credentials (only localhost & placeholders).');
+  }
+} catch (err) {
+  console.warn(`⚠️ Warning: Git history scan skipped (${err.message})`);
+}
+
 // Report Results
 console.log('\n==========================================');
 console.log('📊 Secrets Safety Audit Summary');

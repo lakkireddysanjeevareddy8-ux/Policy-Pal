@@ -244,18 +244,16 @@ sequenceDiagram
 
 ## 6. Security Rationale: Row Level Security with No Public Policies
 
-A foundational security requirement of PolicyPal is:
-> **"Enable Row Level Security on all tables with no public policies, since only the backend connects."**
-
 ### Architectural Justification
-1. **Zero Client-Side Direct Database Access**:
-   - The Supabase client library is **not** included in the frontend bundle. The browser never interacts directly with Supabase APIs (`supabase.from(...)` is absent).
-   - This guarantees that API secrets, direct table schemas, and database connection strings cannot be reverse-engineered from JavaScript sourcemaps or browser memory.
-2. **Backend Authentication & Authorization Barrier**:
-   - All client interactions route through the Express REST API protected by signed JSON Web Tokens (JWT) verified via `requireAuth` middleware.
-   - The server connects to PostgreSQL using a single trusted connection pool (`pg.Pool`).
-3. **Defense-in-Depth Against Database Leaks**:
-   - Enabling RLS with `ALTER TABLE <tablename> ENABLE ROW LEVEL SECURITY;` without adding any `CREATE POLICY ... FOR SELECT TO anon, authenticated` ensures that even if Supabase PostgREST or Supabase GraphQL ports were accidentally exposed publicly, any unauthenticated or anonymously authenticated web query returns **zero rows**.
-4. **Strict Server-Side Scoping by `user_id`**:
-   - Every read, update, patch, and delete SQL statement strictly embeds `WHERE user_id = $1` using parameterized queries (e.g. `SELECT * FROM assessments WHERE id = $1 AND user_id = $2`).
-   - If a user attempts to view, mutate, or delete another user's assessment or match, the query returns 0 rows, resulting in an immediate **HTTP 404 Not Found**, eliminating IDOR (Insecure Direct Object Reference) vulnerabilities.
+1. **Direct Backend Connection via `DATABASE_URL`**:
+   - The Express backend connects directly to Supabase PostgreSQL using `DATABASE_URL` via a connection pool (`pg.Pool`).
+   - The Supabase client SDK (`@supabase/supabase-js`) is not used by the browser or the server; neither client-side direct database queries nor Supabase service role keys are employed.
+2. **RLS as a Deny-by-Default Safety Net**:
+   - Every database table has Row Level Security enabled (`ALTER TABLE <table_name> ENABLE ROW LEVEL SECURITY;`) with **no public policies** defined.
+   - This functions as an impenetrable deny-by-default safety net: if Supabase's public-facing REST API (PostgREST) or GraphQL endpoints are queried by anonymous (`anon`) or public roles, PostgreSQL blocks all access and returns zero rows or an authorization error.
+3. **Real Isolation via Server-Side `user_id` Scoping & JWT Auth**:
+   - Real tenant isolation is enforced at the application layer:
+     - All protected API routes require a valid JSON Web Token (JWT) verified by `requireAuth` middleware.
+     - The verified `req.user.id` is explicitly injected into every SQL query (e.g., `SELECT * FROM assessments WHERE id = $1 AND user_id = $2`).
+     - A user can never view, mutate, rerun, or delete another citizen's records. Any cross-tenant attempt yields an immediate **HTTP 404 Not Found**, completely preventing Insecure Direct Object Reference (IDOR) attacks.
+

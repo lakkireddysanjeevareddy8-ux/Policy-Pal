@@ -19,16 +19,9 @@ export async function runMigrations() {
     );
   `);
 
-  // Migration directories to check
-  const migrationDirs = [
-    path.resolve(__dirname, '../../db/migrations'),
-    path.resolve(__dirname, './migrations'),
-  ];
-
-  let migrationsPath = migrationDirs.find((dir) => fs.existsSync(dir));
-
-  if (!migrationsPath) {
-    throw new Error('Migrations directory not found!');
+  const migrationsPath = path.resolve(__dirname, './migrations');
+  if (!fs.existsSync(migrationsPath)) {
+    throw new Error(`Migrations directory not found at: ${migrationsPath}`);
   }
 
   const files = fs
