@@ -8,6 +8,10 @@ import { fileURLToPath } from 'url';
 
 import authRoutes from './routes/auth.routes.js';
 import profileRoutes from './routes/profile.routes.js';
+import schemeRoutes from './routes/scheme.routes.js';
+import documentRoutes from './routes/document.routes.js';
+import matchRoutes from './routes/match.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 import { notFoundHandler, centralErrorHandler } from './middleware/error.middleware.js';
 import { apiLimiter } from './middleware/rateLimiter.middleware.js';
 
@@ -61,6 +65,10 @@ app.get(['/health', '/api/health'], (req, res) => {
 // Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/schemes', schemeRoutes);
+app.use('/api/documents', documentRoutes);
+app.use('/api/matches', matchRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Catch 404
 app.use(notFoundHandler);
