@@ -73,7 +73,7 @@ Deploy the backend on [Render](https://render.com).
 
 #### Option A: Using the Blueprint (`render.yaml`)
 1. In Render, select **Blueprints** -> **New Blueprint Instance**.
-2. Connect your Git repository. Render will automatically parse [render.yaml](file:///c:/Users/Sanjeeva%20Reddy/OneDrive/Attachments/Desktop/Policy_Pal/render.yaml).
+2. Connect your Git repository. Render will automatically parse [render.yaml](render.yaml).
 3. Fill in the required environment variables:
    - `DATABASE_URL`: Your Supabase connection string.
    - `GEMINI_API_KEY`: Your Google AI Studio API key.
@@ -120,7 +120,7 @@ Deploy the React frontend on [Vercel](https://vercel.com):
    - `VITE_API_URL`: `https://policypal-backend.onrender.com/api` (URL of your Render service)
 4. Click **Deploy**.
 5. Once complete, copy your production domain (e.g., `https://policypal-citizen.vercel.app`).
-6. Single Page Application (SPA) routing is handled by [client/vercel.json](file:///c:/Users/Sanjeeva%20Reddy/OneDrive/Attachments/Desktop/Policy_Pal/client/vercel.json), preventing 404 errors on browser page reloads.
+6. Single Page Application (SPA) routing is handled by [client/vercel.json](client/vercel.json), preventing 404 errors on browser page reloads.
 
 ---
 
