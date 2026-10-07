@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../api/client.js';
-import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import ReadinessBadge from '../components/ReadinessBadge.jsx';
 import {
@@ -19,12 +19,12 @@ import {
   IndianRupee,
   Layers,
   ArrowLeft,
-  Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function AssessmentResultPage() {
   const { id } = useParams();
-  const { language, t } = useAuth();
+  const { t, i18n } = useTranslation();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -34,6 +34,10 @@ export default function AssessmentResultPage() {
   const [rerunning, setRerunning] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    document.title = `${t('nav.appName')} - ${t('assessment.resultTitle')}`;
+  }, [t]);
 
   useEffect(() => {
     async function fetchAssessment() {
@@ -46,14 +50,14 @@ export default function AssessmentResultPage() {
         }
       } catch (err) {
         console.error('Failed to load assessment:', err);
-        setError('Assessment record not found or access unauthorized.');
+        setError(t('errors.notFound'));
       } finally {
         setLoading(false);
       }
     }
 
     fetchAssessment();
-  }, [id]);
+  }, [id, t]);
 
   const handleRerun = async () => {
     try {
@@ -62,10 +66,10 @@ export default function AssessmentResultPage() {
       if (res.data?.success) {
         setAssessment(res.data.data.assessment);
         setMatches(res.data.data.matches || []);
-        showToast('Assessment re-evaluated with Gemini AI!', 'success');
+        showToast(t('assessment.aiNotice'), 'success');
       }
     } catch (err) {
-      showToast('Failed to rerun assessment. Please try again.', 'error');
+      showToast(t('errors.aiUnavailable'), 'error');
     } finally {
       setRerunning(false);
     }
@@ -77,33 +81,57 @@ export default function AssessmentResultPage() {
       const res = await api.patch(`/assessments/${id}`, { archived: newArchived });
       if (res.data?.success) {
         setAssessment((prev) => ({ ...prev, archived: newArchived }));
-        showToast(newArchived ? 'Assessment archived' : 'Assessment unarchived', 'info');
+        showToast(newArchived ? t('status.archived') : t('status.all'), 'info');
       }
     } catch (err) {
-      showToast('Failed to update status', 'error');
+      showToast(t('errors.generic'), 'error');
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this assessment and its scheme matches?')) {
+    if (!window.confirm(t('common.confirm') + '?')) {
       return;
     }
 
     try {
       setDeleting(true);
       await api.delete(`/assessments/${id}`);
-      showToast('Assessment deleted successfully', 'success');
+      showToast(t('common.delete'), 'success');
       navigate('/dashboard');
     } catch (err) {
-      showToast('Failed to delete assessment', 'error');
+      showToast(t('errors.generic'), 'error');
       setDeleting(false);
     }
   };
 
   const getSchemeName = (scheme) => {
-    if (language === 'te' && scheme.scheme_name_te) return scheme.scheme_name_te;
-    if (language === 'hi' && scheme.scheme_name_hi) return scheme.scheme_name_hi;
-    return scheme.scheme_name;
+    if (scheme.translations && scheme.translations[i18n.language]?.name) {
+      return scheme.translations[i18n.language].name;
+    }
+    if (i18n.language === 'te' && scheme.scheme_name_te) return scheme.scheme_name_te;
+    if (i18n.language === 'hi' && scheme.scheme_name_hi) return scheme.scheme_name_hi;
+    return scheme.scheme_name || scheme.name;
+  };
+
+  const getSchemeBenefit = (scheme) => {
+    if (scheme.translations && scheme.translations[i18n.language]?.benefit_summary) {
+      return scheme.translations[i18n.language].benefit_summary;
+    }
+    return scheme.benefit_summary;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat(i18n.language, {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }).format(date);
+    } catch {
+      return new Date(dateString).toLocaleDateString();
+    }
   };
 
   if (loading) {
@@ -122,14 +150,14 @@ export default function AssessmentResultPage() {
   if (error || !assessment) {
     return (
       <div className="max-w-md mx-auto my-16 p-8 bg-white rounded-2xl border border-slate-200 text-center space-y-4 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900">Assessment Not Found</h3>
-        <p className="text-sm text-slate-500">{error || 'This assessment does not exist.'}</p>
+        <h3 className="text-lg font-bold text-slate-900">{t('errors.notFound')}</h3>
+        <p className="text-sm text-slate-500">{error || t('common.pageNotFoundDesc')}</p>
         <Link
           to="/dashboard"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Return to Dashboard</span>
+          <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
+          <span>{t('common.back')}</span>
         </Link>
       </div>
     );
@@ -138,41 +166,41 @@ export default function AssessmentResultPage() {
   const p = assessment.extracted_profile || {};
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 text-start">
       {/* Top Breadcrumb & Action Toolbar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <Link
           to="/dashboard"
           className="text-xs font-bold text-slate-600 hover:text-emerald-700 flex items-center gap-1.5 transition"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Dashboard</span>
+          <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
+          <span>{t('dashboard.title')}</span>
         </Link>
 
         <div className="flex items-center gap-2 self-end sm:self-center">
           <button
             onClick={handleRerun}
             disabled={rerunning}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition"
-            title="Re-run AI evaluation"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition cursor-pointer"
+            title={t('assessment.rerunAssessment')}
           >
             <RotateCw className={`w-3.5 h-3.5 ${rerunning ? 'animate-spin text-emerald-600' : ''}`} />
-            <span>{rerunning ? 'Re-running...' : 'Re-run AI'}</span>
+            <span>{rerunning ? t('common.loading') : t('assessment.rerunAssessment')}</span>
           </button>
 
           <button
             onClick={handleToggleArchive}
-            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition"
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 flex items-center gap-1.5 transition cursor-pointer"
           >
             {assessment.archived ? (
               <>
                 <ArchiveRestore className="w-3.5 h-3.5 text-amber-600" />
-                <span>Unarchive</span>
+                <span>{t('status.all')}</span>
               </>
             ) : (
               <>
                 <Archive className="w-3.5 h-3.5 text-slate-500" />
-                <span>Archive</span>
+                <span>{t('status.archived')}</span>
               </>
             )}
           </button>
@@ -180,10 +208,10 @@ export default function AssessmentResultPage() {
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-semibold text-rose-700 flex items-center gap-1.5 transition"
+            className="px-3 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-semibold text-rose-700 flex items-center gap-1.5 transition cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-            <span>Delete</span>
+            <span>{t('common.delete')}</span>
           </button>
         </div>
       </div>
@@ -193,18 +221,14 @@ export default function AssessmentResultPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div className="space-y-1">
             <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-              Evaluated in {assessment.language?.toUpperCase()}
+              {t('assessment.aiSourceTag')} ({assessment.language?.toUpperCase()})
             </span>
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
-              Citizen Profile & Welfare Evaluation
+              {t('assessment.citizenProfileTitle')}
             </h1>
           </div>
           <span className="text-xs text-slate-400">
-            {new Date(assessment.created_at).toLocaleDateString('en-IN', {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
+            {formatDate(assessment.created_at)}
           </span>
         </div>
 
@@ -216,18 +240,18 @@ export default function AssessmentResultPage() {
         {/* Extracted Demographic Fact Badges */}
         <div className="space-y-2">
           <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Structured Facts Identified:
+            {t('assessment.citizenProfileTitle')}:
           </h4>
           <div className="flex flex-wrap gap-2 text-xs">
             {p.age && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-800 font-semibold border border-slate-200">
                 <User className="w-3.5 h-3.5 text-slate-500" />
-                Age: {p.age} yrs
+                {t('assessment.age')}: {p.age}
               </span>
             )}
             {p.gender && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-800 font-semibold border border-slate-200 capitalize">
-                Gender: {p.gender}
+                {t('assessment.gender')}: {p.gender}
               </span>
             )}
             {p.state && (
@@ -245,32 +269,32 @@ export default function AssessmentResultPage() {
             {p.annual_income && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-800 font-semibold border border-slate-200">
                 <IndianRupee className="w-3.5 h-3.5 text-slate-500" />
-                Income: ₹{Number(p.annual_income).toLocaleString('en-IN')}/yr
+                {t('assessment.income')}: ₹{Number(p.annual_income).toLocaleString('en-IN')}
               </span>
             )}
             {p.land_holding_acres && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 font-semibold border border-amber-200">
-                Land: {p.land_holding_acres} Acres
+                {t('assessment.landHolding')}: {p.land_holding_acres} {t('assessment.acresUnit')}
               </span>
             )}
             {p.social_category && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-900 font-semibold border border-blue-200">
-                Category: {p.social_category}
+                {p.social_category}
               </span>
             )}
             {p.is_farmer && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px]">
-                ✓ Farmer
+                ✓ {t('assessment.farmer')}
               </span>
             )}
             {p.is_student && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-purple-100 text-purple-800 font-bold text-[11px]">
-                ✓ Student
+                ✓ {t('assessment.student')}
               </span>
             )}
             {p.is_business_owner && (
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-teal-100 text-teal-800 font-bold text-[11px]">
-                ✓ Micro Enterprise
+                ✓ {t('assessment.businessOwner')}
               </span>
             )}
           </div>
@@ -280,7 +304,7 @@ export default function AssessmentResultPage() {
         <div className="bg-emerald-50/70 p-4 sm:p-5 rounded-2xl border border-emerald-200 space-y-1.5">
           <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
             <Sparkles className="w-4 h-4 text-emerald-600" />
-            <span>Gemini AI Assessment Outlook:</span>
+            <span>{t('assessment.resultTitle')}</span>
           </div>
           <p className="text-sm text-emerald-950 leading-relaxed font-medium">
             {assessment.ai_summary}
@@ -292,7 +316,7 @@ export default function AssessmentResultPage() {
           <div className="bg-amber-50/80 p-4 sm:p-5 rounded-2xl border border-amber-200 space-y-2">
             <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
               <HelpCircle className="w-4 h-4 text-amber-600" />
-              <span>Questions to further refine eligibility:</span>
+              <span>{t('assessment.refineAssessment')}</span>
             </div>
             <ul className="list-disc list-inside space-y-1 text-xs text-amber-950">
               {assessment.missing_info.map((q, idx) => (
@@ -311,10 +335,10 @@ export default function AssessmentResultPage() {
           <div className="space-y-0.5">
             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
               <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-              <span>Eligible Schemes ({matches.length})</span>
+              <span>{t('assessment.matchedSchemesTitle')} ({matches.length})</span>
             </h2>
             <p className="text-xs text-slate-500">
-              Ranked by compatibility with your demographic and income profile
+              {t('scheme.subtitle')}
             </p>
           </div>
         </div>
@@ -322,12 +346,12 @@ export default function AssessmentResultPage() {
         {matches.length === 0 ? (
           <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center text-slate-500 space-y-3">
             <Layers className="w-12 h-12 text-slate-300 mx-auto" />
-            <p className="text-sm">No schemes met the 50% match score threshold.</p>
+            <p className="text-sm">{t('assessment.noMatchesFound')}</p>
             <Link
               to="/assessments/new"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold cursor-pointer"
             >
-              Try Another Description
+              {t('assessment.rerunAssessment')}
             </Link>
           </div>
         ) : (
@@ -341,11 +365,11 @@ export default function AssessmentResultPage() {
                   {/* Category & Match Score Header */}
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
-                      {m.category}
+                      {t(`categories.${m.category}`, m.category)}
                     </span>
                     <div className="flex items-center gap-1.5">
                       <span className="text-xs font-extrabold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-xs">
-                        {m.match_score}% Match
+                        {m.match_score}% {t('dashboard.matchScore')}
                       </span>
                     </div>
                   </div>
@@ -360,13 +384,30 @@ export default function AssessmentResultPage() {
 
                   {/* Benefits summary */}
                   <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">
-                    {m.benefit_summary}
+                    {getSchemeBenefit(m)}
                   </p>
 
                   {/* AI Eligibility Reason */}
                   <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-800 leading-relaxed">
-                    <strong>Why you qualify:</strong> {m.eligibility_reason}
+                    <strong>{t('assessment.eligibilityReason')}:</strong> {m.eligibility_reason}
                   </div>
+
+                  {/* Assumptions to Confirm (Hallucination Guard) */}
+                  {m.assumptions_to_confirm && m.assumptions_to_confirm.length > 0 && (
+                    <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 text-xs text-amber-950 space-y-1">
+                      <div className="font-bold flex items-center gap-1.5 text-amber-900">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>{t('assessment.pleaseConfirm')}:</span>
+                      </div>
+                      <ul className="list-disc list-inside space-y-0.5 text-[11px] text-amber-900">
+                        {m.assumptions_to_confirm.map((item, idx) => (
+                          <li key={idx} className="leading-snug">
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 {/* Shared Document Readiness & Action */}
@@ -379,10 +420,10 @@ export default function AssessmentResultPage() {
 
                   <Link
                     to={`/schemes/${m.scheme_slug}`}
-                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition flex items-center justify-center gap-2"
+                    className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <span>View Scheme & Personalized Steps</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>{t('dashboard.viewScheme')}</span>
+                    <ArrowRight className="w-4 h-4 rtl:rotate-180" />
                   </Link>
                 </div>
               </div>

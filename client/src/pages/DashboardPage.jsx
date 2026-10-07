@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import ReadinessBadge from '../components/ReadinessBadge.jsx';
 import {
   Sparkles,
-  LayoutDashboard,
   CheckCircle2,
   Clock,
   Layers,
@@ -20,7 +20,6 @@ import {
   Archive,
   ArchiveRestore,
   BarChart3,
-  PieChart as PieChartIcon,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -29,14 +28,12 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  PieChart,
-  Pie,
   Cell,
-  Legend,
 } from 'recharts';
 
 export default function DashboardPage() {
-  const { user, t, language } = useAuth();
+  const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const { showToast } = useToast();
 
   const [stats, setStats] = useState(null);
@@ -46,6 +43,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState({});
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    document.title = `${t('nav.appName')} - ${t('dashboard.title')}`;
+  }, [t]);
 
   const fetchDashboardData = async () => {
     try {
@@ -66,7 +67,7 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
-      setError('Failed to load dashboard. Please refresh or try again.');
+      setError(t('errors.serverError'));
     } finally {
       setLoading(false);
     }
@@ -84,11 +85,11 @@ export default function DashboardPage() {
     try {
       const res = await api.post(`/assessments/${assessmentId}/rerun`);
       if (res.data?.success) {
-        showToast('Assessment re-evaluated with Gemini AI!', 'success');
+        showToast(t('assessment.aiNotice'), 'success');
         await fetchDashboardData();
       }
     } catch (err) {
-      showToast('Failed to rerun assessment', 'error');
+      showToast(t('errors.aiUnavailable'), 'error');
     } finally {
       setActionLoading((prev) => ({ ...prev, [assessmentId]: null }));
     }
@@ -105,7 +106,7 @@ export default function DashboardPage() {
       });
       if (res.data?.success) {
         showToast(
-          !currentArchived ? 'Assessment archived' : 'Assessment unarchived',
+          !currentArchived ? t('status.archived') : t('status.all'),
           'info'
         );
         setAssessments((prev) =>
@@ -113,16 +114,42 @@ export default function DashboardPage() {
         );
       }
     } catch (err) {
-      showToast('Failed to update archive status', 'error');
+      showToast(t('errors.generic'), 'error');
     } finally {
       setActionLoading((prev) => ({ ...prev, [assessmentId]: null }));
     }
   };
 
   const getSchemeName = (scheme) => {
-    if (language === 'te' && scheme.name_te) return scheme.name_te;
-    if (language === 'hi' && scheme.name_hi) return scheme.name_hi;
+    if (scheme.translations && scheme.translations[i18n.language]?.name) {
+      return scheme.translations[i18n.language].name;
+    }
+    if (i18n.language === 'te' && scheme.name_te) return scheme.name_te;
+    if (i18n.language === 'hi' && scheme.name_hi) return scheme.name_hi;
     return scheme.name;
+  };
+
+  const getSchemeBenefit = (scheme) => {
+    if (scheme.translations && scheme.translations[i18n.language]?.benefit_summary) {
+      return scheme.translations[i18n.language].benefit_summary;
+    }
+    return scheme.benefit_summary;
+  };
+
+  const formatDate = (dateString, withTime = false) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      const options = {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}),
+      };
+      return new Intl.DateTimeFormat(i18n.language, options).format(date);
+    } catch {
+      return new Date(dateString).toLocaleDateString();
+    }
   };
 
   const CATEGORY_COLORS = [
@@ -151,12 +178,11 @@ export default function DashboardPage() {
   }
 
   const categoryChartData = (charts?.category_distribution || []).map((item) => ({
-    name: item.category.replace('_', ' ').toUpperCase(),
+    name: t(`categories.${item.category}`, item.category.replace('_', ' ')),
     schemes: item.count,
   }));
 
   const readinessPercent = stats?.overall_document_readiness_percent || 0;
-  // Circular ring stroke offset
   const radius = 45;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (readinessPercent / 100) * circumference;
@@ -164,27 +190,26 @@ export default function DashboardPage() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+      <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden text-start">
         <div className="relative z-10 max-w-2xl space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-emerald-200 text-xs font-semibold backdrop-blur-sm">
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>Citizen Welfare Command Center</span>
+            <span>{t('landing.heroBadge')}</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            {t('welcomeBack')}, {user?.full_name || 'Citizen'}!
+            {t('dashboard.welcomeBack', { name: user?.full_name || 'Citizen' })}
           </h1>
           <p className="text-sm sm:text-base text-emerald-100 leading-relaxed">
-            Your centralized overview of eligible government schemes, real-time application progress,
-            and shared document readiness.
+            {t('dashboard.subtitle')}
           </p>
           <div className="pt-2">
             <Link
               to="/assessments/new"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-emerald-950 bg-amber-400 hover:bg-amber-300 shadow-md transition transform hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-emerald-950 bg-amber-400 hover:bg-amber-300 shadow-md transition transform hover:-translate-y-0.5 cursor-pointer"
             >
               <Sparkles className="w-4 h-4 text-emerald-900" />
-              <span>{t('startNewAssessment')}</span>
-              <ArrowRight className="w-4 h-4" />
+              <span>{t('dashboard.startNewAssessment')}</span>
+              <ArrowRight className="w-4 h-4 rtl:rotate-180" />
             </Link>
           </div>
         </div>
@@ -202,16 +227,16 @@ export default function DashboardPage() {
       )}
 
       {/* Key Metric Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-start">
         {/* Total Matches */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {t('totalMatches')}
+              {t('dashboard.totalMatches')}
             </p>
             <p className="text-3xl font-extrabold text-slate-900">{stats?.total_matches || 0}</p>
             <Link to="/applications" className="text-xs font-semibold text-emerald-600 hover:underline">
-              View all matches →
+              {t('dashboard.viewAllAssessments')} →
             </Link>
           </div>
           <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
@@ -223,12 +248,12 @@ export default function DashboardPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {t('applicationsInProgress')}
+              {t('dashboard.applicationsInProgress')}
             </p>
             <p className="text-3xl font-extrabold text-amber-600">
               {stats?.applications_in_progress || 0}
             </p>
-            <span className="text-xs text-slate-400">Currently applying</span>
+            <span className="text-xs text-slate-400">{t('status.inProgress')}</span>
           </div>
           <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
             <Clock className="w-6 h-6" />
@@ -239,11 +264,11 @@ export default function DashboardPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {t('overallReadiness')}
+              {t('dashboard.overallReadiness')}
             </p>
             <p className="text-3xl font-extrabold text-teal-600">{readinessPercent}%</p>
             <Link to="/documents" className="text-xs font-semibold text-teal-600 hover:underline">
-              Manage documents →
+              {t('nav.docTracker')} →
             </Link>
           </div>
           <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center">
@@ -255,7 +280,7 @@ export default function DashboardPage() {
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {t('totalReadyDocs')}
+              {t('dashboard.totalReadyDocs')}
             </p>
             <p className="text-3xl font-extrabold text-slate-900">
               {stats?.total_ready_documents || 0}
@@ -264,7 +289,7 @@ export default function DashboardPage() {
                 / {stats?.total_tracked_documents || 16}
               </span>
             </p>
-            <span className="text-xs text-slate-400">Shared across schemes</span>
+            <span className="text-xs text-slate-400">{t('dashboard.readyDocsRatio', { percent: readinessPercent })}</span>
           </div>
           <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
             <FileCheck2 className="w-6 h-6" />
@@ -273,23 +298,23 @@ export default function DashboardPage() {
       </div>
 
       {/* DATA VISUALIZATION SECTION: Recharts & Funnel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-start">
         {/* 1. Category Distribution Bar Chart */}
         <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
               <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 <BarChart3 className="w-5 h-5 text-emerald-600" />
-                <span>Eligible Schemes by Category</span>
+                <span>{t('dashboard.categoryDistributionTitle')}</span>
               </h3>
-              <p className="text-xs text-slate-500">Distribution across national welfare domains</p>
+              <p className="text-xs text-slate-500">{t('landing.whySubtitle')}</p>
             </div>
           </div>
 
           <div className="h-64 w-full">
             {categoryChartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                No scheme matches to display yet.
+                {t('dashboard.noApplicationsYet')}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -330,16 +355,15 @@ export default function DashboardPage() {
           <div className="space-y-1">
             <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-teal-600" />
-              <span>Readiness Ring</span>
+              <span>{t('dashboard.overallReadiness')}</span>
             </h3>
-            <p className="text-xs text-slate-500">Portfolio certificate completion</p>
+            <p className="text-xs text-slate-500">{t('dashboard.syncNotice')}</p>
           </div>
 
-          {/* SVG Animated Circular Progress Ring */}
+          {/* SVG Circular Progress Ring */}
           <div className="flex items-center justify-center py-2">
             <div className="relative w-36 h-36 flex items-center justify-center">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                {/* Background Ring */}
                 <circle
                   cx="50"
                   cy="50"
@@ -348,7 +372,6 @@ export default function DashboardPage() {
                   strokeWidth="8"
                   fill="transparent"
                 />
-                {/* Progress Ring */}
                 <circle
                   cx="50"
                   cy="50"
@@ -365,7 +388,7 @@ export default function DashboardPage() {
               <div className="absolute flex flex-col items-center justify-center text-center">
                 <span className="text-2xl font-extrabold text-slate-900">{readinessPercent}%</span>
                 <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Readiness
+                  {t('dashboard.readiness')}
                 </span>
               </div>
             </div>
@@ -374,7 +397,7 @@ export default function DashboardPage() {
           {/* 3. Status Funnel (Saved -> Applying -> Applied) */}
           <div className="space-y-2 pt-2 border-t border-slate-100">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-              Application Funnel
+              {t('dashboard.applicationFunnelTitle')}
             </span>
             <div className="space-y-1.5">
               {(charts?.status_funnel || []).map((step) => (
@@ -387,7 +410,7 @@ export default function DashboardPage() {
                       className="w-2.5 h-2.5 rounded-full"
                       style={{ backgroundColor: step.fill }}
                     />
-                    {step.label}
+                    {t(`status.${step.status}`, step.label)}
                   </span>
                   <span className="font-bold text-slate-900 px-2 py-0.5 rounded bg-white border border-slate-200">
                     {step.count}
@@ -400,38 +423,38 @@ export default function DashboardPage() {
       </div>
 
       {/* Top 3 Schemes Closest to Application-Ready */}
-      <div className="space-y-4">
+      <div className="space-y-4 text-start">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-              <span>{t('closestToReady')}</span>
+              <span>{t('dashboard.closestToReady')}</span>
             </h2>
             <p className="text-xs text-slate-500">
-              Schemes with the highest percentage of ready required documents
+              {t('dashboard.subtitle')}
             </p>
           </div>
           <Link
             to="/documents"
             className="text-xs font-bold text-emerald-700 hover:text-emerald-800 hover:underline flex items-center gap-1"
           >
-            <span>Open Document Tracker</span>
-            <ChevronRight className="w-4 h-4" />
+            <span>{t('nav.docTracker')}</span>
+            <ChevronRight className="w-4 h-4 rtl:rotate-180" />
           </Link>
         </div>
 
         {topSchemes.length === 0 ? (
           <div className="bg-white rounded-2xl p-8 border border-slate-200 text-center space-y-3">
             <Layers className="w-12 h-12 text-slate-300 mx-auto" />
-            <h3 className="text-base font-bold text-slate-800">No Matched Schemes Yet</h3>
+            <h3 className="text-base font-bold text-slate-800">{t('dashboard.noApplicationsYet')}</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Run an eligibility check with your situation to discover matching schemes.
+              {t('dashboard.exploreSchemesPrompt')}
             </p>
             <Link
               to="/assessments/new"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow hover:bg-emerald-700"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold shadow hover:bg-emerald-700 cursor-pointer"
             >
-              Start First Check
+              {t('dashboard.startNewAssessment')}
             </Link>
           </div>
         ) : (
@@ -444,10 +467,10 @@ export default function DashboardPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
-                      {scheme.category}
+                      {t(`categories.${scheme.category}`, scheme.category)}
                     </span>
                     <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                      {scheme.match_score}% Match
+                      {scheme.match_score}% {t('dashboard.matchScore')}
                     </span>
                   </div>
 
@@ -456,7 +479,7 @@ export default function DashboardPage() {
                   </h3>
 
                   <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                    {scheme.benefit_summary}
+                    {getSchemeBenefit(scheme)}
                   </p>
                 </div>
 
@@ -471,8 +494,8 @@ export default function DashboardPage() {
                     to={`/schemes/${scheme.slug}`}
                     className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition"
                   >
-                    <span>{t('viewScheme')}</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <span>{t('dashboard.viewScheme')}</span>
+                    <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
                   </Link>
                 </div>
               </div>
@@ -482,22 +505,22 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Assessments History with Quick Rerun & Archive Actions */}
-      <div className="space-y-4">
+      <div className="space-y-4 text-start">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-teal-600" />
-              <span>Assessment History</span>
+              <span>{t('dashboard.recentAssessmentsTitle')}</span>
             </h2>
             <p className="text-xs text-slate-500">
-              Previous evaluations with instant Re-run AI and Archive actions
+              {t('assessment.aiNotice')}
             </p>
           </div>
         </div>
 
         {assessments.length === 0 ? (
           <div className="bg-white rounded-2xl p-6 border border-slate-200 text-center text-slate-500 text-xs">
-            No previous assessments found.
+            {t('dashboard.noApplicationsYet')}
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm divide-y divide-slate-100">
@@ -512,27 +535,11 @@ export default function DashboardPage() {
                       {a.language?.toUpperCase() || 'EN'}
                     </span>
                     <span className="text-xs text-slate-500">
-                      <strong>Created:</strong>{' '}
-                      {new Date(a.created_at).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      <strong>{formatDate(a.created_at, true)}</strong>
                     </span>
-                    {a.updated_at && a.updated_at !== a.created_at && (
-                      <span className="text-xs text-slate-400">
-                        • Updated:{' '}
-                        {new Date(a.updated_at).toLocaleDateString('en-IN', {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
-                      </span>
-                    )}
                     {a.archived && (
                       <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded">
-                        Archived
+                        {t('status.archived')}
                       </span>
                     )}
                   </div>
@@ -545,40 +552,40 @@ export default function DashboardPage() {
                 {/* Actions: Re-run AI, Archive, View */}
                 <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
                   <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 mr-1">
-                    {a.matches_count || 0} Schemes Found
+                    {a.matches_count || 0} {t('scheme.schemesCount', { count: a.matches_count || 0 })}
                   </span>
 
                   <button
                     type="button"
                     onClick={(e) => handleRerun(a.id, e)}
                     disabled={actionLoading[a.id] === 'rerun'}
-                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition"
-                    title="Re-run Gemini AI evaluation"
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition cursor-pointer"
+                    title={t('assessment.rerunAssessment')}
                   >
                     <RotateCw
                       className={`w-3.5 h-3.5 ${
                         actionLoading[a.id] === 'rerun' ? 'animate-spin text-emerald-600' : ''
                       }`}
                     />
-                    <span className="hidden sm:inline">Re-run AI</span>
+                    <span className="hidden sm:inline">{t('assessment.rerunAssessment')}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={(e) => handleToggleArchive(a.id, a.archived, e)}
                     disabled={actionLoading[a.id] === 'archive'}
-                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition"
-                    title={a.archived ? 'Unarchive' : 'Archive'}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition cursor-pointer"
+                    title={a.archived ? t('status.all') : t('status.archived')}
                   >
                     {a.archived ? (
                       <>
                         <ArchiveRestore className="w-3.5 h-3.5 text-amber-600" />
-                        <span className="hidden sm:inline">Unarchive</span>
+                        <span className="hidden sm:inline">{t('status.all')}</span>
                       </>
                     ) : (
                       <>
                         <Archive className="w-3.5 h-3.5 text-slate-500" />
-                        <span className="hidden sm:inline">Archive</span>
+                        <span className="hidden sm:inline">{t('status.archived')}</span>
                       </>
                     )}
                   </button>
@@ -586,9 +593,9 @@ export default function DashboardPage() {
                   <Link
                     to={`/assessments/${a.id}`}
                     className="p-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition"
-                    title="View Assessment"
+                    title={t('dashboard.viewScheme')}
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-4 h-4 rtl:rotate-180" />
                   </Link>
                 </div>
               </div>

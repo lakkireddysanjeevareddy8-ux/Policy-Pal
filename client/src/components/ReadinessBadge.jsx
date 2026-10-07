@@ -1,7 +1,9 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, Clock } from 'lucide-react';
 
 export default function ReadinessBadge({ readyCount, totalCount, percentage, size = 'md' }) {
+  const { t } = useTranslation();
   const percent = percentage !== undefined ? percentage : (totalCount > 0 ? Math.round((readyCount / totalCount) * 100) : 100);
   
   let colorTheme = {
@@ -53,10 +55,10 @@ export default function ReadinessBadge({ readyCount, totalCount, percentage, siz
           ) : (
             <Clock className="w-4 h-4 text-amber-600" />
           )}
-          <span>Readiness:</span>
+          <span>{t('dashboard.readiness')}:</span>
           {readyCount !== undefined && totalCount !== undefined && (
             <span className="font-bold text-slate-900">
-              {readyCount} of {totalCount} documents
+              {t('dashboard.readyDocsCount', { ready: readyCount, total: totalCount })}
             </span>
           )}
         </span>

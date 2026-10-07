@@ -39,7 +39,13 @@ export async function getDb() {
     };
   }
 
-  // Fallback to PGlite (WASM Postgres) for zero-config testing & offline verification
+  // Strictly forbid PGlite in production
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ FATAL: DATABASE_URL environment variable is required in production! Embedded PGlite cannot be used in production.');
+    process.exit(1);
+  }
+
+  // Fallback to PGlite (WASM Postgres) ONLY in development/test
   if (!pgliteInstance) {
     console.log('ℹ️ DATABASE_URL not set. Initializing embedded Postgres (PGlite) for local development...');
     const { PGlite } = await import('@electric-sql/pglite');

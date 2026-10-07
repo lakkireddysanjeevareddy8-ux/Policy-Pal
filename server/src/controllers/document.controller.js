@@ -4,6 +4,8 @@ export async function getDocuments(req, res, next) {
   try {
     const userId = req.user.id;
 
+    const lang = req.query.lang || req.headers['accept-language']?.split(',')[0]?.split(';')[0]?.split('-')[0]?.trim() || 'en';
+
     // Fetch all document types merged with user's readiness state
     const docsRes = await query(
       `SELECT
@@ -12,6 +14,7 @@ export async function getDocuments(req, res, next) {
          dt.label_te,
          dt.label_hi,
          dt.where_to_get,
+         dt.translations,
          COALESCE(ud.is_ready, false) as is_ready,
          ud.notes,
          ud.ready_at,
@@ -44,8 +47,12 @@ export async function getDocuments(req, res, next) {
         (s) => Array.isArray(s.required_doc_keys) && s.required_doc_keys.includes(doc.key)
       );
 
+      const t = (doc.translations || {})[lang] || {};
+
       return {
         ...doc,
+        label: t.label || (lang === 'te' && doc.label_te) || (lang === 'hi' && doc.label_hi) || doc.label,
+        where_to_get: t.where_to_get || doc.where_to_get,
         schemes_count: schemesNeedingDoc.length,
         schemes_using: schemesNeedingDoc.map((s) => ({ id: s.id, name: s.name, slug: s.slug })),
       };

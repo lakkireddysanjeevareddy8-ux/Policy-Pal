@@ -11,7 +11,12 @@ import {
   ChecklistOutputSchema,
 } from '../../schemas/ai.schema.js';
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+export function getGeminiModel(isFallback = false) {
+  if (isFallback) {
+    return process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash';
+  }
+  return process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+}
 
 function getAiClient() {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -46,17 +51,33 @@ async function mapConcurrent(items, limit, asyncFn) {
 async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description }) {
   const ai = getAiClient();
   if (!ai) {
-    throw new Error('NO_API_KEY');
+    const keyError = new Error('GEMINI_API_KEY is not configured on the server. A valid Gemini API key is required.');
+    keyError.status = 502;
+    keyError.code = 'GEMINI_KEY_MISSING';
+    throw keyError;
   }
 
   let attempts = 0;
   let lastError = null;
+  const maxAttempts = 3;
 
-  while (attempts < 2) {
+  while (attempts < maxAttempts) {
     attempts++;
+    const isRetryDueToHttpError =
+      lastError &&
+      (lastError.status === 429 ||
+        lastError.status === 503 ||
+        lastError.message?.includes('429') ||
+        lastError.message?.includes('503') ||
+        lastError.message?.includes('high demand') ||
+        lastError.message?.includes('RESOURCE_EXHAUSTED'));
+
+    const currentModel = getGeminiModel(isRetryDueToHttpError);
+    console.log(`🤖 Using Gemini AI model: ${currentModel} (${description}, attempt ${attempts})`);
+
     try {
       const generatePromise = ai.models.generateContent({
-        model: GEMINI_MODEL,
+        model: currentModel,
         contents: prompt,
         config: {
           systemInstruction: SYSTEM_INSTRUCTION,
@@ -84,9 +105,63 @@ async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description 
         throw new Error(`Invalid JSON returned from Gemini: ${parseErr.message}`);
       }
 
+      // Auto-wrap flat profile output if model returns fields at root level
+      if (
+        description === 'extractProfile' &&
+        !parsedJson.profile &&
+        (parsedJson.state !== undefined || parsedJson.age !== undefined || parsedJson.occupation !== undefined)
+      ) {
+        const { summary, missing_info, ...profileFields } = parsedJson;
+        parsedJson = {
+          profile: profileFields,
+          summary: summary || '',
+          missing_info: missing_info || [],
+        };
+      }
+
+      // Auto-unwrap array if returned inside an object wrapper (e.g. { matches: [...] })
+      if (
+        (description === 'matchSchemes' || description === 'buildChecklist') &&
+        !Array.isArray(parsedJson) &&
+        typeof parsedJson === 'object' &&
+        parsedJson !== null
+      ) {
+        const commonKeys = [
+          'matches',
+          'schemes',
+          'results',
+          'checklist',
+          'steps',
+          'data',
+          'items',
+          'scheme_matches',
+          'eligible_schemes',
+        ];
+        let foundArray = null;
+        for (const key of commonKeys) {
+          if (Array.isArray(parsedJson[key])) {
+            foundArray = parsedJson[key];
+            break;
+          }
+        }
+        if (!foundArray) {
+          for (const key of Object.keys(parsedJson)) {
+            if (Array.isArray(parsedJson[key])) {
+              foundArray = parsedJson[key];
+              break;
+            }
+          }
+        }
+        if (foundArray) {
+          parsedJson = foundArray;
+        }
+      }
+
       // Validate with Zod
       const validationResult = zodSchema.safeParse(parsedJson);
       if (!validationResult.success) {
+        const keys = typeof parsedJson === 'object' && parsedJson !== null ? Object.keys(parsedJson) : [];
+        console.warn(`[Gemini AI] Validation failed. parsedJson keys: ${keys.join(', ')}`);
         throw new Error(
           `Zod validation failed for ${description}: ${validationResult.error.message}`
         );
@@ -97,16 +172,17 @@ async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description 
       console.warn(`⚠️ [Gemini AI] Attempt ${attempts} failed for ${description}:`, err.message);
       lastError = err;
 
-      if (attempts < 2) {
+      if (attempts < maxAttempts) {
         // Backoff with extra delay on 429 (rate limit) or 503 (service unavailable)
         const isRateLimitOrUnavailable =
           err.status === 429 ||
           err.status === 503 ||
           err.message?.includes('429') ||
           err.message?.includes('503') ||
+          err.message?.includes('high demand') ||
           err.message?.includes('RESOURCE_EXHAUSTED');
 
-        const delay = isRateLimitOrUnavailable ? attempts * 2500 : 1000;
+        const delay = isRateLimitOrUnavailable ? attempts * 2000 : 800;
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -121,26 +197,141 @@ async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description 
   throw error502;
 }
 
-// 1. extractProfile
+// Indian States and Canonical Normalization
+const INDIAN_STATES_NORMALIZED = {
+  // Telugu
+  'తెలంగాణ': 'Telangana',
+  'ఆంధ్రప్రదేశ్': 'Andhra Pradesh',
+  'ఆంధ్ర ప్రదేశ్': 'Andhra Pradesh',
+  'కర్ణాటక': 'Karnataka',
+  'తమిళనాడు': 'Tamil Nadu',
+  'మహారాష్ట్ర': 'Maharashtra',
+  'కేరళ': 'Kerala',
+  'ఉత్తర ప్రదేశ్': 'Uttar Pradesh',
+  'బీహార్': 'Bihar',
+  'రాజస్థాన్': 'Rajasthan',
+  'గుజరాత్': 'Gujarat',
+  'పంజాబ్': 'Punjab',
+  'ఒడిశా': 'Odisha',
+  'పశ్చిమ బెంగాల్': 'West Bengal',
+  // Hindi
+  'तेलंगाना': 'Telangana',
+  'आंध्र प्रदेश': 'Andhra Pradesh',
+  'कर्नाटक': 'Karnataka',
+  'तमिलनाडु': 'Tamil Nadu',
+  'महाराष्ट्र': 'Maharashtra',
+  'केरल': 'Kerala',
+  'उत्तर प्रदेश': 'Uttar Pradesh',
+  'बिहार': 'Bihar',
+  'राजस्थान': 'Rajasthan',
+  'मध्य प्रदेश': 'Madhya Pradesh',
+  'गुजरात': 'Gujarat',
+  'पश्चिम बंगाल': 'West Bengal',
+  'ओडिशा': 'Odisha',
+  'पंजाब': 'Punjab',
+  'हरियाणा': 'Haryana',
+};
+
+const CANONICAL_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
+  'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
+  'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+  'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal',
+  'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Puducherry', 'Chandigarh'
+];
+
+export function normalizeProfileFields(profile) {
+  if (!profile) return profile;
+
+  // 1. State normalization
+  if (profile.state) {
+    const rawState = profile.state.trim();
+    if (INDIAN_STATES_NORMALIZED[rawState]) {
+      profile.state = INDIAN_STATES_NORMALIZED[rawState];
+    } else {
+      const match = CANONICAL_STATES.find(
+        (s) => s.toLowerCase() === rawState.toLowerCase()
+      );
+      if (match) profile.state = match;
+    }
+  }
+
+  // 2. District normalization
+  if (profile.district) {
+    const rawDist = profile.district.trim();
+    const districtMap = {
+      'వరంగల్': 'Warangal',
+      'రంగారెడ్డి': 'Rangareddy',
+      'కరీంనగర్': 'Karimnagar',
+      'హైదరాబాద్': 'Hyderabad',
+      'నల్గొండ': 'Nalgonda',
+      'ఖమ్మం': 'Khammam',
+      'वारंगल': 'Warangal',
+      'हैदराबाद': 'Hyderabad',
+      'पटना': 'Patna',
+      'जयपुर': 'Jaipur',
+      'लखनऊ': 'Lucknow',
+    };
+    if (districtMap[rawDist]) {
+      profile.district = districtMap[rawDist];
+    }
+  }
+
+  // 3. Occupation normalization
+  if (profile.occupation) {
+    const rawOcc = profile.occupation.trim().toLowerCase();
+    if (rawOcc.includes('వ్యవసాయ') || rawOcc.includes('రైతు') || rawOcc.includes('किसान') || rawOcc.includes('खेती') || rawOcc.includes('farm')) {
+      profile.occupation = 'farmer';
+      profile.is_farmer = true;
+    } else if (rawOcc.includes('విద్యార్థి') || rawOcc.includes('छात्र') || rawOcc.includes('student')) {
+      profile.occupation = 'student';
+      profile.is_student = true;
+    } else if (rawOcc.includes('వ్యాపార') || rawOcc.includes('व्यापार') || rawOcc.includes('business') || rawOcc.includes('दुकान')) {
+      profile.occupation = 'business_owner';
+      profile.is_business_owner = true;
+    } else if (rawOcc.includes('కూలీ') || rawOcc.includes('मजदूर') || rawOcc.includes('labor')) {
+      profile.occupation = 'daily_wage_laborer';
+    }
+  }
+
+  // 4. Gender normalization
+  if (profile.gender) {
+    const rawGender = profile.gender.trim().toLowerCase();
+    if (rawGender.includes('female') || rawGender.includes('మహిళ') || rawGender.includes('స్త్రీ') || rawGender.includes('महिला') || rawGender.includes('स्त्री')) {
+      profile.gender = 'female';
+    } else if (rawGender.includes('male') || rawGender.includes('పురుష') || rawGender.includes('पुरुष')) {
+      profile.gender = 'male';
+    } else {
+      profile.gender = 'other';
+    }
+  }
+
+  return profile;
+}
+
+// 1. extractProfile - Real Gemini AI only (NO silent fallbacks)
 export async function extractProfile(situationText, language = 'en') {
   const prompt = getProfileExtractionPrompt(situationText, language);
 
-  try {
-    return await callGeminiWithRetry({
-      prompt,
-      zodSchema: ProfileExtractionSchema,
-      description: 'extractProfile',
-    });
-  } catch (err) {
-    if (err.message === 'NO_API_KEY') {
-      console.log('ℹ️ GEMINI_API_KEY not configured. Using rule-based extraction fallback...');
-      return fallbackExtractProfile(situationText, language);
-    }
-    throw err;
-  }
+  const rawResult = await callGeminiWithRetry({
+    prompt,
+    zodSchema: ProfileExtractionSchema,
+    description: 'extractProfile',
+  });
+
+  // Apply canonical English normalization
+  const normalizedProfile = normalizeProfileFields(rawResult.profile);
+
+  return {
+    profile: normalizedProfile,
+    summary: rawResult.summary,
+    missing_info: rawResult.missing_info || [],
+    ai_source: 'gemini',
+  };
 }
 
-// 2. matchSchemes
+// 2. matchSchemes - Real Gemini AI only (NO silent fallbacks)
 export async function matchSchemes(profile, catalog, language = 'en') {
   // Pass compact catalog representation to conserve tokens and enforce strict ID matching
   const compactCatalog = catalog.map((s) => ({
@@ -155,21 +346,11 @@ export async function matchSchemes(profile, catalog, language = 'en') {
 
   const prompt = getSchemeMatchingPrompt(profile, compactCatalog, language);
 
-  let rawMatches;
-  try {
-    rawMatches = await callGeminiWithRetry({
-      prompt,
-      zodSchema: SchemeMatchOutputSchema,
-      description: 'matchSchemes',
-    });
-  } catch (err) {
-    if (err.message === 'NO_API_KEY') {
-      console.log('ℹ️ GEMINI_API_KEY not configured. Using rule-based matching fallback...');
-      rawMatches = fallbackMatchSchemes(profile, catalog, language);
-    } else {
-      throw err;
-    }
-  }
+  const rawMatches = await callGeminiWithRetry({
+    prompt,
+    zodSchema: SchemeMatchOutputSchema,
+    description: 'matchSchemes',
+  });
 
   // Server-side validation: Gemini may ONLY return scheme IDs that exist in the catalog
   const catalogIdSet = new Set(catalog.map((s) => s.id));
@@ -186,23 +367,17 @@ export async function matchSchemes(profile, catalog, language = 'en') {
   return validatedMatches.slice(0, 8);
 }
 
-// 3. buildChecklist
+// 3. buildChecklist - Real Gemini AI only (NO silent fallbacks)
 export async function buildChecklist(profile, scheme, language = 'en') {
   const prompt = getChecklistPrompt(profile, scheme, language);
 
-  try {
-    const checklist = await callGeminiWithRetry({
-      prompt,
-      zodSchema: ChecklistOutputSchema,
-      description: `buildChecklist(${scheme.slug})`,
-    });
-    return checklist.map((item) => ({ ...item, done: false }));
-  } catch (err) {
-    if (err.message === 'NO_API_KEY') {
-      return fallbackBuildChecklist(profile, scheme, language);
-    }
-    throw err;
-  }
+  const checklist = await callGeminiWithRetry({
+    prompt,
+    zodSchema: ChecklistOutputSchema,
+    description: `buildChecklist(${scheme.slug})`,
+  });
+
+  return checklist.map((item) => ({ ...item, done: false }));
 }
 
 // Batch build checklists with concurrency cap (limit = 3)
@@ -215,225 +390,15 @@ export async function buildChecklistsForMatches(profile, matches, catalogMap, la
       const checklist = await buildChecklist(profile, scheme, language);
       return { ...match, checklist };
     } catch (err) {
-      console.error(`Error generating checklist for ${scheme.slug}:`, err.message);
-      // Fallback to official scheme application steps if AI fails
-      const fallbackList = (scheme.application_steps || []).map((s) => ({
-        step: s.title,
-        detail: s.detail,
-        done: false,
-      }));
-      return { ...match, checklist: fallbackList };
+      console.error(`Checklist generation error for scheme ${scheme.slug}:`, err.message);
+      return {
+        ...match,
+        checklist: (scheme.application_steps || []).map((step, idx) => ({
+          step: typeof step === 'string' ? step : step.step || `Step ${idx + 1}`,
+          detail: typeof step === 'string' ? step : step.detail || 'Follow official scheme guidelines',
+          done: false,
+        })),
+      };
     }
   });
-}
-
-// -------------------------------------------------------------
-// Deterministic rule-based fallbacks for offline dev & test suites
-// -------------------------------------------------------------
-function fallbackExtractProfile(text, language) {
-  const lower = text.toLowerCase();
-
-  const isFarmer =
-    lower.includes('farmer') ||
-    lower.includes('agriculture') ||
-    lower.includes('crop') ||
-    lower.includes('land') ||
-    lower.includes('రైతు') ||
-    lower.includes('किसान');
-
-  const isStudent =
-    lower.includes('student') ||
-    lower.includes('college') ||
-    lower.includes('school') ||
-    lower.includes('scholarship') ||
-    lower.includes('విద్యార్థి') ||
-    lower.includes('छात्र');
-
-  const isBusinessOwner =
-    lower.includes('business') ||
-    lower.includes('shop') ||
-    lower.includes('vendor') ||
-    lower.includes('enterprise') ||
-    lower.includes('వ్యాపారం') ||
-    lower.includes('दुकान');
-
-  // Age extraction heuristic
-  const ageMatch = text.match(/(\d{1,2})\s*(?:years old|year old|yo|years|వయస్సు|साल)/i);
-  const age = ageMatch ? parseInt(ageMatch[1], 10) : null;
-
-  // Land acres extraction heuristic
-  const landMatch = text.match(/([\d.]+)\s*(?:acres?|ఎకరాలు|एकड़)/i);
-  const landHolding = landMatch ? parseFloat(landMatch[1]) : (isFarmer ? 2.5 : null);
-
-  // Income heuristic
-  let annualIncome = null;
-  const incomeMatch = text.match(/(?:₹|rs\.?|inr)?\s*([\d.]+)\s*(?:lakhs?|lakh|లక్షలు|लाख)/i);
-  if (incomeMatch) {
-    annualIncome = Math.round(parseFloat(incomeMatch[1]) * 100000);
-  } else if (lower.includes('poor') || lower.includes('bpl') || lower.includes('పేద')) {
-    annualIncome = 120000;
-  }
-
-  // State detection
-  let state = null;
-  if (lower.includes('telangana') || lower.includes('తెలంగాణ')) state = 'Telangana';
-  else if (lower.includes('andhra') || lower.includes('ఆంధ్ర')) state = 'Andhra Pradesh';
-  else if (lower.includes('karnataka')) state = 'Karnataka';
-  else if (lower.includes('maharashtra')) state = 'Maharashtra';
-
-  // Category detection
-  let socialCategory = null;
-  if (lower.includes('sc') || lower.includes('scheduled caste')) socialCategory = 'SC';
-  else if (lower.includes('st') || lower.includes('scheduled tribe')) socialCategory = 'ST';
-  else if (lower.includes('obc') || lower.includes('backward')) socialCategory = 'OBC';
-  else if (lower.includes('ews')) socialCategory = 'EWS';
-
-  const gender = lower.includes('woman') || lower.includes('female') || lower.includes('ఆమె') || lower.includes('महिला')
-    ? 'female'
-    : lower.includes('man') || lower.includes('male') || lower.includes('అతను') || lower.includes('पुरुष')
-    ? 'male'
-    : null;
-
-  const summaries = {
-    en: `Identified profile as a citizen interested in welfare opportunities with an estimated income of ${annualIncome ? '₹' + annualIncome.toLocaleString('en-IN') : 'low-to-middle income'}. Based on your background, we have matched relevant government assistance and credit schemes.`,
-    te: `మీ పరిస్థితి వివరాల ఆధారంగా ఆదాయం మరియు వృత్తి వర్గాన్ని గుర్తించాము. మీ ప్రొఫైల్‌కు అనువైన ప్రభుత్వ పథకాలు మరియు ఆర్థిక సహాయ కార్యక్రమాలు జతచేయబడ్డాయి.`,
-    hi: `आपकी स्थिति के आधार पर आय और व्यवसाय की जानकारी का विश्लेषण किया गया है। आपकी पात्रता के अनुसार सरकारी योजनाओं और सहायता कार्यक्रमों का मिलान किया गया है।`,
-  };
-
-  const missingQuestions = {
-    en: [
-      'Do you possess an active BPL or White Food Security Ration Card?',
-      'Is your bank account seeded with your Aadhaar for Direct Benefit Transfer (DBT)?',
-      'Do you have documented proof of land records or tenancy agreement?',
-    ],
-    te: [
-      'మీ వద్ద తెల్ల రేషన్ కార్డు (ఆహార భద్రత కార్డు) ఉందా?',
-      'మీ బ్యాంక్ ఖాతాకు ఆధార్ లింక్ (DBT) అయ్యిందా?',
-      'మీ భూమి లేదా వ్యాపార ధ్రువీకరణ పత్రాలు అందుబాటులో ఉన్నాయా?',
-    ],
-    hi: [
-      'क्या आपके पास बीपीएल या राशन कार्ड उपलब्ध है?',
-      'क्या आपका बैंक खाता आधार से डीबीटी हेतु लिंक है?',
-      'क्या आपके पास भूमि या व्यवसाय का वैध प्रमाण पत्र है?',
-    ],
-  };
-
-  return {
-    profile: {
-      age,
-      gender,
-      state,
-      district: null,
-      occupation: isFarmer ? 'Farmer' : isBusinessOwner ? 'Small Business Owner' : isStudent ? 'Student' : 'General Citizen',
-      annual_income: annualIncome,
-      social_category: socialCategory,
-      land_holding_acres: landHolding,
-      education_level: isStudent ? 'Higher Secondary' : null,
-      is_student: isStudent,
-      is_farmer: isFarmer,
-      is_business_owner: isBusinessOwner,
-      family_size: 4,
-    },
-    summary: summaries[language] || summaries.en,
-    missing_info: missingQuestions[language] || missingQuestions.en,
-  };
-}
-
-function fallbackMatchSchemes(profile, catalog, language) {
-  const matches = [];
-
-  for (const s of catalog) {
-    let score = 50;
-    let reason = '';
-
-    if (profile.is_farmer && s.category === 'agriculture') {
-      score = 90;
-      reason = language === 'te'
-        ? 'మీరు వ్యవసాయదారుడిగా ఉన్నందున ఈ పథకానికి అర్హులు.'
-        : language === 'hi'
-        ? 'आप एक किसान हैं, इसलिए इस कृषि योजना के पात्र हैं।'
-        : 'You are engaged in agriculture, making you directly eligible for farmer welfare assistance.';
-    } else if (profile.is_farmer && s.slug === 'kisan-credit-card') {
-      score = 88;
-      reason = language === 'te'
-        ? 'రైతులకు సబ్సిడీ వడ్డీ రేటుతో రుణ సహాయం లభిస్తుంది.'
-        : language === 'hi'
-        ? 'किसानों को रियायती ब्याज दर पर कृषि ऋण मिलता है।'
-        : 'Concessional agricultural credit is available for landholding farmers.';
-    } else if (profile.annual_income && profile.annual_income <= 500000 && s.category === 'health') {
-      score = 85;
-      reason = language === 'te'
-        ? 'మీ కుటుంబ వార్షిక ఆదాయం పరిమితి లోపు ఉన్నందున ఉచిత వైద్య చికిత్స లభిస్తుంది.'
-        : language === 'hi'
-        ? 'आपकी पारिवारिक आय सीमा के अंतर्गत होने के कारण आपको कैशलेस इलाज की सुविधा मिलेगी।'
-        : 'Your annual family income falls within the threshold for cashless health coverage.';
-    } else if (profile.is_student && s.category === 'education') {
-      score = 92;
-      reason = language === 'te'
-        ? 'విద్యార్థుల ఉన్నత చదువుల కొరకు స్కాలర్‌షిప్ లభిస్తుంది.'
-        : language === 'hi'
-        ? 'उच्च शिक्षा प्राप्त कर रहे विद्यार्थियों के लिए छात्रवृत्ति सहायता उपलब्ध है।'
-        : 'Eligible for post-matric tuition fee support and maintenance allowance.';
-    } else if (profile.is_business_owner && s.category === 'employment') {
-      score = 86;
-      reason = language === 'te'
-        ? 'సూక్ష్మ వ్యాపారులు మరియు చేతివృత్తుల వారికి ఆర్థిక సహాయం అందుతుంది.'
-        : language === 'hi'
-        ? 'सूक्ष्म उद्यमियों और कारीगरों के लिए रियायती वित्तीय सहायता उपलब्ध है।'
-        : 'Collateral-free working capital loan and credit guarantee for small business owners.';
-    } else if (s.category === 'social_security') {
-      score = 75;
-      reason = language === 'te'
-        ? 'తక్కువ ప్రీమియంతో సామాజిక భద్రత మరియు జీవిత బీమా రక్షణ లభిస్తుంది.'
-        : language === 'hi'
-        ? 'किफायती प्रीमियम पर सामाजिक सुरक्षा और जीवन बीमा का लाभ उपलब्ध है।'
-        : 'Affordable universal social security and pension protection available to all eligible adults.';
-    }
-
-    if (score >= 50) {
-      matches.push({
-        scheme_id: s.id,
-        match_score: score,
-        eligibility_reason: reason || 'Matches demographic and citizen welfare criteria.',
-        caution: null,
-      });
-    }
-  }
-
-  matches.sort((a, b) => b.match_score - a.match_score);
-  return matches.slice(0, 8);
-}
-
-function fallbackBuildChecklist(profile, scheme, language) {
-  if (scheme.application_steps && scheme.application_steps.length > 0) {
-    return scheme.application_steps.map((st) => ({
-      step: st.title,
-      detail: st.detail,
-      done: false,
-    }));
-  }
-
-  const defaultSteps = {
-    en: [
-      { step: 'Gather Required Documents', detail: 'Collect Aadhaar card, bank passbook, and proof of address.' },
-      { step: 'Check Official Portal', detail: `Visit ${scheme.official_url} to verify the application guidelines.` },
-      { step: 'Submit Application Form', detail: 'Fill the official form online or at the local designated service office.' },
-      { step: 'Track Sanction & Payment', detail: 'Note down reference number and monitor status updates via SMS.' },
-    ],
-    te: [
-      { step: 'కావలసిన పత్రాలు సేకరించండి', detail: 'ఆధార్ కార్డు, బ్యాంక్ పాస్‌బుక్ మరియు నివాస ధ్రువీకరణ పత్రాలు సిద్ధం చేయండి.' },
-      { step: 'అధికారిక పోర్టల్ తనిఖీ చేయండి', detail: `${scheme.official_url} సందర్శించి తాజా మార్గదర్శకాలను తెలుసుకోండి.` },
-      { step: 'దరఖాస్తు సమర్పించండి', detail: 'ఆన్‌లైన్ లేదా మీసేవా కేంద్రంలో వివరాలు నమోదు చేయండి.' },
-      { step: 'స్థితిని ట్రాక్ చేయండి', detail: 'దరఖాస్తు రసీదు సంఖ్యను భద్రపరుచుకుని స్థితిని గమనించండి.' },
-    ],
-    hi: [
-      { step: 'आवश्यक दस्तावेज एकत्र करें', detail: 'आधार कार्ड, बैंक पासबुक और निवास प्रमाण पत्र तैयार रखें।' },
-      { step: 'आधिकारिक पोर्टल देखें', detail: `${scheme.official_url} पर जाकर आवेदन प्रक्रिया की जानकारी लें।` },
-      { step: 'आवेदन पत्र जमा करें', detail: 'ऑनलाइन पोर्टल या जन सेवा केंद्र (सीएससी) पर फॉर्म भरें।' },
-      { step: 'आवेदन की स्थिति ट्रैक करें', detail: 'पंजीकरण संख्या सुरक्षित रखें और स्टेटस चेक करते रहें।' },
-    ],
-  };
-
-  const steps = defaultSteps[language] || defaultSteps.en;
-  return steps.map((s) => ({ ...s, done: false }));
 }

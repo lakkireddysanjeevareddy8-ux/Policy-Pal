@@ -79,15 +79,16 @@ export async function createAssessment(req, res, next) {
 
     // 5. Save Assessment into Database
     const assessmentRes = await query(
-      `INSERT INTO assessments (user_id, situation_text, language, extracted_profile, ai_summary)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, user_id, situation_text, language, extracted_profile, ai_summary, archived, created_at, updated_at`,
+      `INSERT INTO assessments (user_id, situation_text, language, extracted_profile, ai_summary, ai_source)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, user_id, situation_text, language, extracted_profile, ai_summary, ai_source, archived, created_at, updated_at`,
       [
         userId,
         situation_text,
         language,
         JSON.stringify(extractedProfile),
         aiSummary,
+        'gemini',
       ]
     );
 
@@ -99,8 +100,8 @@ export async function createAssessment(req, res, next) {
       const matchRes = await query(
         `INSERT INTO scheme_matches (
            assessment_id, user_id, scheme_id, match_score,
-           eligibility_reason, missing_info, status, ai_checklist
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           eligibility_reason, missing_info, status, ai_checklist, assumptions_to_confirm
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING *`,
         [
           assessment.id,
@@ -111,6 +112,7 @@ export async function createAssessment(req, res, next) {
           JSON.stringify(missing_info),
           'saved',
           JSON.stringify(match.checklist || []),
+          JSON.stringify(match.assumptions_to_confirm || []),
         ]
       );
       savedMatches.push(matchRes.rows[0]);

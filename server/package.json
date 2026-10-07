@@ -11,6 +11,7 @@
     "seed": "node src/db/seed.js",
     "test": "node --test src/**/*.test.js",
     "check:secrets": "node ../scripts/check-secrets.js",
+    "translate:catalog": "node scripts/translate-catalog.js",
     "verify": "node scripts/final-verification.js"
   },
   "dependencies": {

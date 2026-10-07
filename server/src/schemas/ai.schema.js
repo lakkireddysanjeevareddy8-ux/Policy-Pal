@@ -2,21 +2,21 @@ import { z } from 'zod';
 
 export const ProfileExtractionSchema = z.object({
   profile: z.object({
-    age: z.number().int().min(0).max(125).nullable(),
-    gender: z.string().nullable(),
-    state: z.string().nullable(),
-    district: z.string().nullable(),
-    occupation: z.string().nullable(),
-    annual_income: z.number().nullable(),
-    social_category: z.string().nullable(),
+    age: z.number().int().min(0).max(125).nullable().describe('Age in years'),
+    gender: z.string().nullable().describe('Canonical English: "male", "female", or "other"'),
+    state: z.string().nullable().describe('Canonical English name of Indian State or UT, e.g. "Telangana"'),
+    district: z.string().nullable().describe('Canonical English name of district, e.g. "Warangal"'),
+    occupation: z.string().nullable().describe('Canonical English occupation, e.g. "farmer"'),
+    annual_income: z.number().nullable().describe('Annual income in Indian Rupees (INR)'),
+    social_category: z.string().nullable().describe('Canonical English category: "General", "OBC", "SC", "ST", "EWS"'),
     land_holding_acres: z.number().nullable(),
-    education_level: z.string().nullable(),
+    education_level: z.string().nullable().describe('Canonical English education level'),
     is_student: z.boolean().nullable(),
     is_farmer: z.boolean().nullable(),
     is_business_owner: z.boolean().nullable(),
     family_size: z.number().int().nullable(),
   }),
-  summary: z.string().min(10),
+  summary: z.string().min(10).describe('Empathetic summary written in the user requested language'),
   missing_info: z.array(z.string()).default([]),
 });
 
@@ -25,6 +25,7 @@ export const SchemeMatchItemSchema = z.object({
   match_score: z.number().int().min(0).max(100),
   eligibility_reason: z.string().min(10),
   caution: z.string().optional().nullable(),
+  assumptions_to_confirm: z.array(z.string()).default([]),
 });
 
 export const SchemeMatchOutputSchema = z.array(SchemeMatchItemSchema);
@@ -36,13 +37,15 @@ export const ChecklistItemSchema = z.object({
 
 export const ChecklistOutputSchema = z.array(ChecklistItemSchema).min(3).max(10);
 
+import { SUPPORTED_LANG_CODES } from './constants.js';
+
 export const createAssessmentSchema = z.object({
   situation_text: z
     .string()
     .trim()
     .min(10, 'Please describe your situation in at least 10 characters')
     .max(2000, 'Situation description cannot exceed 2000 characters'),
-  language: z.enum(['en', 'te', 'hi']).default('en'),
+  language: z.enum(SUPPORTED_LANG_CODES).default('en'),
 });
 
 export const updateAssessmentSchema = z.object({

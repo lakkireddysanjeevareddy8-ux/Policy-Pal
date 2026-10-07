@@ -1,0 +1,15 @@
+export const SUPPORTED_LANG_CODES = [
+  'en',
+  'hi',
+  'te',
+  'ta',
+  'kn',
+  'ml',
+  'mr',
+  'gu',
+  'bn',
+  'pa',
+  'or',
+  'as',
+  'ur',
+];

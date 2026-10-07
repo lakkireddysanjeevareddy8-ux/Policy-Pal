@@ -19,7 +19,7 @@ export async function register(req, res, next) {
       return res.status(409).json({
         success: false,
         error: {
-          code: 'EMAIL_ALREADY_EXISTS',
+          code: 'AUTH_EMAIL_EXISTS',
           message: 'An account with this email address already exists.',
         },
       });
@@ -76,7 +76,7 @@ export async function login(req, res, next) {
       return res.status(401).json({
         success: false,
         error: {
-          code: 'INVALID_CREDENTIALS',
+          code: 'AUTH_INVALID_CREDENTIALS',
           message: 'Invalid email or password.',
         },
       });
@@ -88,7 +88,7 @@ export async function login(req, res, next) {
       return res.status(401).json({
         success: false,
         error: {
-          code: 'INVALID_CREDENTIALS',
+          code: 'AUTH_INVALID_CREDENTIALS',
           message: 'Invalid email or password.',
         },
       });
@@ -137,3 +137,36 @@ export async function logout(req, res) {
     },
   });
 }
+
+export async function updatePreferredLanguage(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const { preferred_language } = req.body;
+    await query('UPDATE users SET preferred_language = $1 WHERE id = $2', [preferred_language, userId]);
+    return res.json({
+      success: true,
+      data: {
+        preferred_language,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteMe(req, res, next) {
+  try {
+    const userId = req.user.id;
+    await query('DELETE FROM users WHERE id = $1', [userId]);
+    return res.json({
+      success: true,
+      data: {
+        message: 'Account deleted successfully',
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+

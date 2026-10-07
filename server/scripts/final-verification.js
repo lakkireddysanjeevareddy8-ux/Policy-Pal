@@ -1,4 +1,6 @@
+import 'dotenv/config';
 import http from 'http';
+import { getDb, closeDb } from '../src/db/index.js';
 
 const BASE_URL = 'http://127.0.0.1:5000';
 
@@ -19,6 +21,7 @@ async function runFinalVerification() {
   console.log('================================================================\n');
 
   const results = [];
+  const runTag = `[run-${Date.now()}]`;
 
   function record(checkName, passed, detail) {
     results.push({ checkName, passed, detail });
@@ -58,8 +61,8 @@ async function runFinalVerification() {
     `State: ${prof?.state}, Land: ${prof?.land_holding_acres} acres, Occupation: "${prof?.occupation}", is_farmer: ${prof?.is_farmer}`
   );
 
-  // 4. Create New AI Assessment (English)
-  const situationText = 'I am a 48-year-old small farmer in Telangana with 2 acres land, cultivating cotton and maize';
+  // 4. Create New AI Assessment (English with unique run tag)
+  const situationText = `I am a 48-year-old small farmer in Telangana with 2 acres land, cultivating cotton and maize ${runTag}`;
   const assess1 = await request('/api/assessments', {
     method: 'POST',
     headers: { Authorization: `Bearer ${userAToken}` },
@@ -73,7 +76,7 @@ async function runFinalVerification() {
     `Status: ${assess1.status}, Assessment ID: ${assessId}, Matched Schemes: ${matchCount}, Cached: ${assess1.data?.cached}`
   );
 
-  // 5. 24-Hour AI Caching Check (Identical Submission)
+  // 5. 24-Hour AI Caching Check (Identical Submission within same run)
   const assessCached = await request('/api/assessments', {
     method: 'POST',
     headers: { Authorization: `Bearer ${userAToken}` },
@@ -92,6 +95,7 @@ async function runFinalVerification() {
     body: { email: userBEmail, password: 'SecurePassword@123', full_name: 'Citizen B' },
   });
   const userBToken = regB.data?.data?.token;
+  const userBId = regB.data?.data?.user?.id;
   record(
     'User B Registration',
     regB.status === 201 && Boolean(userBToken),
@@ -147,13 +151,53 @@ async function runFinalVerification() {
   );
 
   // 10. Multi-Field Search (GET /matches?q=)
-  const searchRes = await request('/api/matches?q=cotton', {
+  const searchRes = await request('/api/matches?q=farmer', {
     headers: { Authorization: `Bearer ${userAToken}` },
   });
   record(
-    'Deep Match Search (q=cotton)',
+    'Deep Match Search (q=farmer)',
     searchRes.status === 200 && searchRes.data?.data?.matches?.length > 0,
     `Status: ${searchRes.status}, Found: ${searchRes.data?.data?.matches?.length} schemes matching query in eligibility reasons / checklist`
+  );
+
+  // 11. Self-Cleaning: Delete created test assessment, revert doc state, and clean temporary user B
+  console.log('\n🧹 Running automated test self-cleaning...');
+  let cleanSuccess = true;
+
+  if (assessId) {
+    const delAssess = await request(`/api/assessments/${assessId}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${userAToken}` },
+    });
+    if (delAssess.status !== 200) {
+      console.warn('⚠️ Assessment deletion returned status:', delAssess.status);
+      cleanSuccess = false;
+    }
+  }
+
+  // Revert land_records back to unready
+  await request('/api/documents/land_records', {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${userAToken}` },
+    body: { is_ready: false },
+  });
+
+  // Clean user B via authenticated API
+  if (userBToken) {
+    const delUserB = await request('/api/auth/me', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${userBToken}` },
+    });
+    if (delUserB.status !== 200) {
+      console.warn('⚠️ User B account deletion returned status:', delUserB.status);
+      cleanSuccess = false;
+    }
+  }
+
+  record(
+    'Verification Self-Cleaning',
+    cleanSuccess,
+    `Test assessment ${assessId} deleted, document readiness state reverted, temporary User B purged`
   );
 
   console.log('\n================================================================');

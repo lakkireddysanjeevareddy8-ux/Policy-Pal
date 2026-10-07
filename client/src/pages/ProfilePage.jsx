@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { User, Save, Loader2, CheckCircle2, ShieldCheck, Globe } from 'lucide-react';
+import { SUPPORTED_LANGUAGES } from '../i18n/languages.js';
+import { changeLanguage } from '../i18n/index.js';
+import { User, Save, Loader2, Globe } from 'lucide-react';
 
 export default function ProfilePage() {
-  const { user, language, setLanguage, t } = useAuth();
+  const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const { showToast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -27,6 +31,10 @@ export default function ProfilePage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    document.title = `${t('nav.appName')} - ${t('profile.title')}`;
+  }, [t]);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -54,14 +62,14 @@ export default function ProfilePage() {
         }
       } catch (err) {
         console.error('Error fetching profile:', err);
-        showToast('Failed to load profile', 'error');
+        showToast(t('errors.serverError'), 'error');
       } finally {
         setLoading(false);
       }
     }
 
     fetchProfile();
-  }, []);
+  }, [t]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -69,6 +77,13 @@ export default function ProfilePage() {
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
+  };
+
+  const handleLanguageChange = async (code) => {
+    await changeLanguage(code);
+    try {
+      api.patch('/auth/me/language', { preferred_language: code }).catch(() => {});
+    } catch {}
   };
 
   const handleSubmit = async (e) => {
@@ -96,11 +111,11 @@ export default function ProfilePage() {
 
       const res = await api.put('/profile', payload);
       if (res.data?.success) {
-        showToast('Citizen profile updated successfully!', 'success');
+        showToast(t('profile.saveSuccess'), 'success');
       }
     } catch (err) {
       console.error('Failed to update profile:', err);
-      showToast('Failed to update profile. Please verify your fields.', 'error');
+      showToast(t('errors.validationFailed'), 'error');
     } finally {
       setSaving(false);
     }
@@ -116,14 +131,14 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 text-start">
       <div className="space-y-1">
         <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
           <User className="w-7 h-7 text-emerald-600" />
-          <span>{t('profile')}</span>
+          <span>{t('profile.title')}</span>
         </h1>
         <p className="text-sm text-slate-600">
-          Save your personal and household details to streamline scheme eligibility checks
+          {t('profile.subtitle')}
         </p>
       </div>
 
@@ -143,15 +158,17 @@ export default function ProfilePage() {
           {/* Language preference */}
           <div className="flex items-center gap-2 text-xs">
             <Globe className="w-4 h-4 text-slate-400" />
-            <span className="font-semibold text-slate-600">Language:</span>
+            <span className="font-semibold text-slate-600">{t('profile.languagePreference')}:</span>
             <select
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-slate-800"
+              value={i18n.language}
+              onChange={(e) => handleLanguageChange(e.target.value)}
+              className="px-2.5 py-1 rounded-lg border border-slate-300 bg-white font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
             >
-              <option value="en">English</option>
-              <option value="te">తెలుగు (Telugu)</option>
-              <option value="hi">हिन्दी (Hindi)</option>
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.nativeName} ({lang.name})
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -162,7 +179,7 @@ export default function ProfilePage() {
             {/* Age */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Age
+                {t('assessment.age')}
               </label>
               <input
                 type="number"
@@ -179,7 +196,7 @@ export default function ProfilePage() {
             {/* Gender */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Gender
+                {t('assessment.gender')}
               </label>
               <select
                 name="gender"
@@ -187,7 +204,7 @@ export default function ProfilePage() {
                 onChange={handleChange}
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="">Select gender</option>
+                <option value="">{t('common.select', 'Select')}</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
                 <option value="transgender">Transgender</option>
@@ -198,7 +215,7 @@ export default function ProfilePage() {
             {/* Social Category */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Social Category
+                {t('profile.demographicProfile')}
               </label>
               <select
                 name="social_category"
@@ -206,7 +223,7 @@ export default function ProfilePage() {
                 onChange={handleChange}
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="">Select category</option>
+                <option value="">{t('common.select', 'Select')}</option>
                 <option value="General">General</option>
                 <option value="OBC">OBC</option>
                 <option value="SC">SC</option>
@@ -218,14 +235,14 @@ export default function ProfilePage() {
             {/* State */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                State
+                {t('assessment.state')}
               </label>
               <input
                 type="text"
                 name="state"
                 value={formData.state}
                 onChange={handleChange}
-                placeholder="e.g. Telangana, Andhra Pradesh"
+                placeholder="e.g. Telangana, Uttar Pradesh"
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -233,14 +250,14 @@ export default function ProfilePage() {
             {/* District */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                District
+                {t('assessment.district')}
               </label>
               <input
                 type="text"
                 name="district"
                 value={formData.district}
                 onChange={handleChange}
-                placeholder="e.g. Rangareddy"
+                placeholder="e.g. Warangal"
                 className="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
@@ -248,7 +265,7 @@ export default function ProfilePage() {
             {/* Occupation */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Occupation
+                {t('assessment.occupation')}
               </label>
               <input
                 type="text"
@@ -263,7 +280,7 @@ export default function ProfilePage() {
             {/* Annual Income */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Annual Family Income (₹)
+                {t('assessment.income')} (₹)
               </label>
               <input
                 type="number"
@@ -280,7 +297,7 @@ export default function ProfilePage() {
             {/* Land Holding */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Land Holding (Acres)
+                {t('assessment.landHolding')} ({t('assessment.acresUnit')})
               </label>
               <input
                 type="number"
@@ -297,7 +314,7 @@ export default function ProfilePage() {
             {/* Family Size */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                Family Size
+                {t('assessment.familySize')}
               </label>
               <input
                 type="number"
@@ -314,7 +331,7 @@ export default function ProfilePage() {
           {/* Citizen Type Checkboxes */}
           <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 block">
-              Citizen Profile Attributes
+              {t('profile.demographicProfile')}
             </span>
             <div className="flex flex-wrap gap-6">
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-800 cursor-pointer select-none">
@@ -325,7 +342,7 @@ export default function ProfilePage() {
                   onChange={handleChange}
                   className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
                 />
-                <span>Active Farmer / Cultivator</span>
+                <span>✓ {t('assessment.farmer')}</span>
               </label>
 
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-800 cursor-pointer select-none">
@@ -336,7 +353,7 @@ export default function ProfilePage() {
                   onChange={handleChange}
                   className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
                 />
-                <span>Enrolled Student</span>
+                <span>✓ {t('assessment.student')}</span>
               </label>
 
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-800 cursor-pointer select-none">
@@ -347,7 +364,7 @@ export default function ProfilePage() {
                   onChange={handleChange}
                   className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
                 />
-                <span>Micro Enterprise / Small Business Owner</span>
+                <span>✓ {t('assessment.businessOwner')}</span>
               </label>
             </div>
           </div>
@@ -355,14 +372,14 @@ export default function ProfilePage() {
           {/* Notes */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              Household Notes & Goals
+              {t('assessment.detail')}
             </label>
             <textarea
               rows={3}
               name="notes"
               value={formData.notes}
               onChange={handleChange}
-              placeholder="Any additional background, e.g. looking for health coverage or crop loan..."
+              placeholder={t('profile.autoExtractedNotice')}
               className="w-full p-3.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
@@ -371,10 +388,10 @@ export default function ProfilePage() {
             <button
               type="submit"
               disabled={saving}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow transition flex items-center gap-2"
+              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow transition flex items-center gap-2 cursor-pointer"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              <span>Save Profile Changes</span>
+              <span>{saving ? t('profile.saving') : t('profile.saveProfile')}</span>
             </button>
           </div>
         </form>

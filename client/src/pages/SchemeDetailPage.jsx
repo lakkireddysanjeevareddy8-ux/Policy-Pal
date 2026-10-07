@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -13,16 +14,14 @@ import {
   Calendar,
   ArrowLeft,
   CheckCircle2,
-  Clock,
   CheckSquare,
   Square,
-  AlertCircle,
-  HelpCircle,
 } from 'lucide-react';
 
 export default function SchemeDetailPage() {
   const { slug } = useParams();
-  const { user, isAuthenticated, language, t } = useAuth();
+  const { t, i18n } = useTranslation();
+  const { isAuthenticated } = useAuth();
   const { showToast } = useToast();
 
   const [scheme, setScheme] = useState(null);
@@ -37,14 +36,15 @@ export default function SchemeDetailPage() {
     async function fetchSchemeDetails() {
       try {
         setLoading(true);
-        const schemeRes = await api.get(`/schemes/${slug}`);
+        const schemeRes = await api.get(`/schemes/${slug}`, {
+          params: { lang: i18n.language },
+        });
         if (!schemeRes.data?.success) throw new Error('Scheme not found');
 
         const s = schemeRes.data.data.scheme;
         setScheme(s);
 
         if (isAuthenticated) {
-          // Fetch user's matches to see if user has an assessment match for this scheme
           const matchesRes = await api.get('/matches');
           const foundMatch = (matchesRes.data?.data?.matches || []).find(
             (m) => m.scheme_slug === slug
@@ -56,7 +56,6 @@ export default function SchemeDetailPage() {
             setChecklist(foundMatch.ai_checklist || []);
             setDocsState(foundMatch.required_documents || []);
           } else {
-            // Fetch user documents state directly
             const docsRes = await api.get('/documents');
             const allUserDocs = docsRes.data?.data?.documents || [];
             const userDocMap = new Map(allUserDocs.map((d) => [d.key, d]));
@@ -90,23 +89,21 @@ export default function SchemeDetailPage() {
         }
       } catch (err) {
         console.error('Error fetching scheme details:', err);
-        setError('Scheme details could not be loaded.');
+        setError(t('errors.notFound'));
       } finally {
         setLoading(false);
       }
     }
 
     fetchSchemeDetails();
-  }, [slug, isAuthenticated]);
+  }, [slug, isAuthenticated, i18n.language, t]);
 
-  // Toggle document readiness (The Twist: syncs across every scheme that needs this doc)
   const handleToggleDocument = async (docKey) => {
     if (!isAuthenticated) {
-      showToast('Please log in to track your documents.', 'info');
+      showToast(t('errors.unauthorized'), 'info');
       return;
     }
 
-    // Optimistic UI update
     const previousDocs = [...docsState];
     const targetDoc = docsState.find((d) => d.key === docKey);
     const newReadyState = !targetDoc?.is_ready;
@@ -120,22 +117,20 @@ export default function SchemeDetailPage() {
         is_ready: newReadyState,
         notes: targetDoc?.notes || null,
       });
+      const docName = t(`documents.names.${docKey}`, targetDoc?.label || docKey);
       showToast(
-        `${targetDoc?.label || docKey} marked as ${newReadyState ? 'Ready' : 'Not Ready'}. Updated across all your schemes!`,
+        `${docName} -> ${newReadyState ? t('status.ready') : t('status.notReady')}`,
         'success'
       );
     } catch (err) {
       console.error('Failed to update document status:', err);
-      // Rollback on error
       setDocsState(previousDocs);
-      showToast('Failed to update document status. Please try again.', 'error');
+      showToast(t('errors.generic'), 'error');
     }
   };
 
-  // Toggle checklist step
   const handleToggleStep = async (index) => {
     if (!isAuthenticated || !matchRecord) {
-      // Toggle locally if guest or not matched
       setChecklist((prev) =>
         prev.map((item, idx) => (idx === index ? { ...item, done: !item.done } : item))
       );
@@ -155,28 +150,52 @@ export default function SchemeDetailPage() {
       });
     } catch (err) {
       setChecklist(previousChecklist);
-      showToast('Failed to update step progress', 'error');
+      showToast(t('errors.generic'), 'error');
     }
   };
 
-  // Update application status
   const handleStatusChange = async (newStatus) => {
     if (!isAuthenticated || !matchRecord) return;
     setMatchStatus(newStatus);
     try {
       await api.patch(`/matches/${matchRecord.id}`, { status: newStatus });
-      showToast(`Application status updated to ${newStatus}`, 'success');
+      showToast(`${t('scheme.applicationStatus')}: ${t(`status.${newStatus}`)}`, 'success');
     } catch (err) {
-      showToast('Failed to update status', 'error');
+      showToast(t('errors.generic'), 'error');
     }
   };
 
   const getSchemeName = () => {
     if (!scheme) return '';
-    if (language === 'te' && scheme.name_te) return scheme.name_te;
-    if (language === 'hi' && scheme.name_hi) return scheme.name_hi;
+    if (scheme.translations && scheme.translations[i18n.language]?.name) {
+      return scheme.translations[i18n.language].name;
+    }
+    if (i18n.language === 'te' && scheme.name_te) return scheme.name_te;
+    if (i18n.language === 'hi' && scheme.name_hi) return scheme.name_hi;
     return scheme.name;
   };
+
+  const getSchemeBenefit = () => {
+    if (!scheme) return '';
+    if (scheme.translations && scheme.translations[i18n.language]?.benefit_summary) {
+      return scheme.translations[i18n.language].benefit_summary;
+    }
+    return scheme.benefit_summary;
+  };
+
+  const getSchemeEligibility = () => {
+    if (!scheme) return '';
+    if (scheme.translations && scheme.translations[i18n.language]?.eligibility_summary) {
+      return scheme.translations[i18n.language].eligibility_summary;
+    }
+    return scheme.eligibility_summary;
+  };
+
+  useEffect(() => {
+    if (scheme) {
+      document.title = `${t('nav.appName')} - ${getSchemeName()}`;
+    }
+  }, [scheme, i18n.language, t]);
 
   const readyDocsCount = docsState.filter((d) => d.is_ready).length;
   const totalDocsCount = docsState.length;
@@ -198,29 +217,29 @@ export default function SchemeDetailPage() {
   if (error || !scheme) {
     return (
       <div className="max-w-md mx-auto my-16 p-8 bg-white rounded-2xl border border-slate-200 text-center space-y-4">
-        <h3 className="text-lg font-bold text-slate-900">Scheme Not Found</h3>
-        <p className="text-sm text-slate-500">{error || 'This scheme could not be found.'}</p>
+        <h3 className="text-lg font-bold text-slate-900">{t('errors.notFound')}</h3>
+        <p className="text-sm text-slate-500">{error || t('common.pageNotFoundDesc')}</p>
         <Link
           to="/schemes"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold cursor-pointer"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Browse All Schemes</span>
+          <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
+          <span>{t('scheme.backToSchemes')}</span>
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 text-start">
       {/* Back button */}
       <div>
         <Link
           to="/schemes"
           className="text-xs font-bold text-slate-600 hover:text-emerald-700 flex items-center gap-1.5 transition"
         >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Schemes Catalog</span>
+          <ArrowLeft className="w-4 h-4 rtl:rotate-180" />
+          <span>{t('scheme.backToSchemes')}</span>
         </Link>
       </div>
 
@@ -230,14 +249,14 @@ export default function SchemeDetailPage() {
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                {scheme.category}
+                {t(`categories.${scheme.category}`, scheme.category)}
               </span>
               <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 capitalize">
-                {scheme.level} {scheme.state ? `• ${scheme.state}` : ''}
+                {scheme.level === 'central' ? t('scheme.centralGov') : t('scheme.stateGov')} {scheme.state ? `• ${scheme.state}` : ''}
               </span>
               {matchRecord && (
                 <span className="text-xs font-extrabold px-2.5 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300">
-                  {matchRecord.match_score}% Match Score
+                  {matchRecord.match_score}% {t('dashboard.matchScore')}
                 </span>
               )}
             </div>
@@ -254,18 +273,18 @@ export default function SchemeDetailPage() {
           {isAuthenticated && matchRecord && (
             <div className="flex flex-col items-end gap-1 shrink-0">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Application Status:
+                {t('scheme.applicationStatus')}:
               </span>
               <select
                 value={matchStatus}
                 onChange={(e) => handleStatusChange(e.target.value)}
                 className="px-3 py-1.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
-                <option value="saved">Saved (Planning)</option>
-                <option value="applying">Applying (In Progress)</option>
-                <option value="applied">Applied (Submitted)</option>
-                <option value="rejected">Rejected</option>
-                <option value="archived">Archived</option>
+                <option value="saved">{t('status.saved')}</option>
+                <option value="applying">{t('status.applying')}</option>
+                <option value="applied">{t('status.applied')}</option>
+                <option value="rejected">{t('status.rejected')}</option>
+                <option value="archived">{t('status.archived')}</option>
               </select>
             </div>
           )}
@@ -276,20 +295,20 @@ export default function SchemeDetailPage() {
           <div className="bg-emerald-50/60 p-5 rounded-2xl border border-emerald-200 space-y-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Scheme Benefits & Financial Assistance</span>
+              <span>{t('scheme.benefits')}</span>
             </h3>
             <p className="text-sm text-emerald-950 leading-relaxed font-medium">
-              {scheme.benefit_summary}
+              {getSchemeBenefit()}
             </p>
           </div>
 
           <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-slate-600" />
-              <span>Official Eligibility Criteria</span>
+              <span>{t('scheme.eligibility')}</span>
             </h3>
             <p className="text-sm text-slate-700 leading-relaxed font-medium">
-              {scheme.eligibility_summary}
+              {getSchemeEligibility()}
             </p>
           </div>
         </div>
@@ -297,7 +316,7 @@ export default function SchemeDetailPage() {
         {/* Why user matched callout (if arrived from an assessment) */}
         {matchRecord?.eligibility_reason && (
           <div className="p-4 bg-teal-50 rounded-2xl border border-teal-200 text-xs text-teal-950 space-y-1">
-            <strong className="text-teal-900 font-bold block">Why You Specifically Qualify:</strong>
+            <strong className="text-teal-900 font-bold block">{t('assessment.eligibilityReason')}:</strong>
             <p className="leading-relaxed">{matchRecord.eligibility_reason}</p>
           </div>
         )}
@@ -306,16 +325,16 @@ export default function SchemeDetailPage() {
         <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-100">
           <span className="text-xs text-slate-400 flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5" />
-            <span>Last verified on official registry: {scheme.last_verified}</span>
+            <span>{t('common.disclaimer')}</span>
           </span>
 
           <a
             href={scheme.official_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow transition flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow transition flex items-center justify-center gap-2 cursor-pointer"
           >
-            <span>Visit Official Government Portal</span>
+            <span>{t('scheme.applyNow')}</span>
             <ExternalLink className="w-4 h-4 text-slate-400" />
           </a>
         </div>
@@ -329,14 +348,14 @@ export default function SchemeDetailPage() {
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <FileCheck2 className="w-5 h-5 text-emerald-600" />
-                <span>Required Documents</span>
+                <span>{t('scheme.requiredDocs')}</span>
               </h3>
               <span className="text-xs font-semibold text-slate-500">
-                {readyDocsCount} / {totalDocsCount} Ready
+                {t('scheme.documentsReadyCount', { ready: readyDocsCount, total: totalDocsCount })}
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              Tick documents you already have. Changes automatically sync to every scheme that needs them.
+              {t('documents.trackerSubtitle')}
             </p>
           </div>
 
@@ -374,7 +393,7 @@ export default function SchemeDetailPage() {
                         doc.is_ready ? 'text-emerald-950' : 'text-slate-800'
                       }`}
                     >
-                      {doc.label}
+                      {t(`documents.names.${doc.key}`, doc.label)}
                     </span>
                     <span
                       className={`text-[10px] font-bold px-2 py-0.5 rounded ${
@@ -383,12 +402,12 @@ export default function SchemeDetailPage() {
                           : 'bg-slate-200 text-slate-600'
                       }`}
                     >
-                      {doc.is_ready ? 'Ready' : 'Needed'}
+                      {doc.is_ready ? t('status.ready') : t('status.notReady')}
                     </span>
                   </div>
                   {doc.where_to_get && (
                     <p className="text-xs text-slate-500 leading-snug">
-                      <strong>Where to get:</strong> {doc.where_to_get}
+                      <strong>{t('documents.names.' + doc.key, doc.label)}:</strong> {doc.where_to_get}
                     </p>
                   )}
                 </div>
@@ -402,12 +421,12 @@ export default function SchemeDetailPage() {
           <div className="space-y-1">
             <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
               <ListOrdered className="w-5 h-5 text-teal-600" />
-              <span>Application Checklist</span>
+              <span>{t('assessment.checklistTitle')}</span>
             </h3>
             <p className="text-xs text-slate-500">
               {matchRecord
-                ? 'AI-personalized procedure tailored to your profile.'
-                : 'Standard official procedure to apply for this scheme.'}
+                ? t('assessment.resultSubtitle')
+                : t('landing.howItWorksSubtitle')}
             </p>
           </div>
 
@@ -443,7 +462,7 @@ export default function SchemeDetailPage() {
                       {item.step}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 pl-7 leading-relaxed">{item.detail}</p>
+                  <p className="text-xs text-slate-600 ps-7 leading-relaxed">{item.detail}</p>
                 </div>
               </div>
             ))}

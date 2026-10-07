@@ -50,6 +50,7 @@ export async function getMatches(req, res, next) {
         sm.missing_info,
         sm.status,
         sm.ai_checklist,
+        sm.assumptions_to_confirm,
         sm.created_at,
         sm.updated_at,
         s.slug as scheme_slug,

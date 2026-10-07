@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext.jsx';
+import LanguageSwitcher from './LanguageSwitcher.jsx';
 import {
   ShieldCheck,
   LayoutDashboard,
@@ -13,11 +15,11 @@ import {
   LogIn,
   Menu,
   X,
-  Globe,
 } from 'lucide-react';
 
 export default function Header() {
-  const { user, isAuthenticated, logout, language, setLanguage, t } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -39,11 +41,11 @@ export default function Header() {
   };
 
   const navLinks = [
-    { name: t('dashboard'), path: '/dashboard', authRequired: true, icon: LayoutDashboard },
-    { name: t('newCheck'), path: '/assessments/new', authRequired: true, icon: Sparkles },
-    { name: t('myApplications'), path: '/applications', authRequired: true, icon: Layers },
-    { name: t('docTracker'), path: '/documents', authRequired: true, icon: FileCheck2 },
-    { name: t('browseSchemes'), path: '/schemes', authRequired: false, icon: Compass },
+    { name: t('nav.dashboard', 'Dashboard'), path: '/dashboard', authRequired: true, icon: LayoutDashboard },
+    { name: t('nav.newCheck', 'New Scheme Check'), path: '/assessments/new', authRequired: true, icon: Sparkles },
+    { name: t('nav.myApplications', 'My Applications'), path: '/applications', authRequired: true, icon: Layers },
+    { name: t('nav.docTracker', 'Document Tracker'), path: '/documents', authRequired: true, icon: FileCheck2 },
+    { name: t('nav.browseSchemes', 'Browse Schemes'), path: '/schemes', authRequired: false, icon: Compass },
   ];
 
   return (
@@ -55,7 +57,7 @@ export default function Header() {
       {wakingUp && (
         <div className="bg-amber-500 text-white text-xs font-semibold py-2 px-4 text-center flex items-center justify-center gap-2 animate-pulse shadow-inner">
           <Sparkles className="w-4 h-4 animate-spin text-amber-200" />
-          <span>Waking up the server (Render free-tier cold start)... Please hold on for a moment!</span>
+          <span>{t('common.wakingUpServer', 'Waking up the server (Render free-tier cold start)... Please hold on for a moment!')}</span>
         </div>
       )}
 
@@ -70,11 +72,11 @@ export default function Header() {
               <span className="font-bold text-xl tracking-tight text-slate-900 flex items-center gap-1.5">
                 Policy<span className="text-emerald-600">Pal</span>
                 <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Gov AI
+                  {t('nav.govAi', 'Gov AI')}
                 </span>
               </span>
               <p className="text-[11px] text-slate-500 hidden sm:block leading-none">
-                National Welfare Discovery
+                {t('nav.nationalWelfareDiscovery', 'National Welfare Discovery')}
               </p>
             </div>
           </Link>
@@ -105,47 +107,15 @@ export default function Header() {
 
           {/* Language Switcher & User Actions */}
           <div className="hidden md:flex items-center gap-3">
-            {/* Language Toggle */}
-            <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200 text-xs">
-              <Globe className="w-3.5 h-3.5 text-slate-400 ml-2 mr-1" />
-              <button
-                onClick={() => setLanguage('en')}
-                className={`px-2 py-1 rounded font-medium transition ${
-                  language === 'en'
-                    ? 'bg-white text-slate-900 shadow-sm font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                EN
-              </button>
-              <button
-                onClick={() => setLanguage('te')}
-                className={`px-2 py-1 rounded font-medium transition ${
-                  language === 'te'
-                    ? 'bg-white text-slate-900 shadow-sm font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                తెలుగు
-              </button>
-              <button
-                onClick={() => setLanguage('hi')}
-                className={`px-2 py-1 rounded font-medium transition ${
-                  language === 'hi'
-                    ? 'bg-white text-slate-900 shadow-sm font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                हिन्दी
-              </button>
-            </div>
+            {/* Globe-icon dropdown language switcher */}
+            <LanguageSwitcher />
 
             {isAuthenticated ? (
               <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
                 <Link
                   to="/profile"
                   className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-100 transition text-sm text-slate-700"
-                  title={user?.full_name || 'Profile'}
+                  title={user?.full_name || t('nav.profile', 'Profile')}
                 >
                   <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs border border-emerald-300">
                     {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'U'}
@@ -157,7 +127,7 @@ export default function Header() {
                 <button
                   onClick={handleLogout}
                   className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                  title={t('logout')}
+                  title={t('nav.logout', 'Logout')}
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -168,23 +138,25 @@ export default function Header() {
                   to="/login"
                   className="px-3.5 py-1.5 text-sm font-medium text-slate-700 hover:text-slate-900 transition"
                 >
-                  {t('login')}
+                  {t('nav.login', 'Login')}
                 </Link>
                 <Link
                   to="/register"
                   className="px-4 py-1.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm shadow-emerald-600/30 transition"
                 >
-                  {t('register')}
+                  {t('nav.register', 'Register')}
                 </Link>
               </div>
             )}
           </div>
 
-          {/* Mobile menu trigger */}
+          {/* Mobile Actions: Language Switcher + Hamburger */}
           <div className="flex md:hidden items-center gap-2">
+            <LanguageSwitcher />
+
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition"
+              className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100"
               aria-label="Toggle menu"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -193,36 +165,9 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
+      {/* Mobile Menu Dropdown */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-3 animate-fade-in shadow-xl">
-          {/* Mobile Language Switcher */}
-          <div className="flex items-center justify-between bg-slate-100 p-2 rounded-lg">
-            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-              <Globe className="w-4 h-4" /> Language
-            </span>
-            <div className="flex gap-1 text-xs">
-              <button
-                onClick={() => setLanguage('en')}
-                className={`px-2.5 py-1 rounded ${language === 'en' ? 'bg-white font-bold shadow' : 'text-slate-600'}`}
-              >
-                EN
-              </button>
-              <button
-                onClick={() => setLanguage('te')}
-                className={`px-2.5 py-1 rounded ${language === 'te' ? 'bg-white font-bold shadow' : 'text-slate-600'}`}
-              >
-                తెలుగు
-              </button>
-              <button
-                onClick={() => setLanguage('hi')}
-                className={`px-2.5 py-1 rounded ${language === 'hi' ? 'bg-white font-bold shadow' : 'text-slate-600'}`}
-              >
-                हिन्दी
-              </button>
-            </div>
-          </div>
-
+        <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-4 shadow-lg animate-in slide-in-from-top-2 duration-200">
           <div className="space-y-1">
             {navLinks
               .filter((link) => !link.authRequired || isAuthenticated)
@@ -251,7 +196,7 @@ export default function Header() {
                   className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-700 hover:bg-slate-100"
                 >
                   <User className="w-5 h-5 text-slate-400" />
-                  {user?.full_name} ({t('profile')})
+                  {user?.full_name} ({t('nav.profile', 'Profile')})
                 </Link>
                 <button
                   onClick={() => {
@@ -261,7 +206,7 @@ export default function Header() {
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-rose-600 hover:bg-rose-50"
                 >
                   <LogOut className="w-5 h-5 text-rose-500" />
-                  {t('logout')}
+                  {t('nav.logout', 'Logout')}
                 </button>
               </div>
             ) : (
@@ -271,14 +216,14 @@ export default function Header() {
                   onClick={() => setMobileMenuOpen(false)}
                   className="text-center py-2 px-3 border border-slate-300 rounded-lg text-sm font-medium text-slate-700"
                 >
-                  {t('login')}
+                  {t('nav.login', 'Login')}
                 </Link>
                 <Link
                   to="/register"
                   onClick={() => setMobileMenuOpen(false)}
                   className="text-center py-2 px-3 bg-emerald-600 text-white rounded-lg text-sm font-semibold shadow"
                 >
-                  {t('register')}
+                  {t('nav.register', 'Register')}
                 </Link>
               </div>
             )}

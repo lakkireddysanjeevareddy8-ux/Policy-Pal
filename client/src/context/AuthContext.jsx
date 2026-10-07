@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../api/client.js';
-import { translations } from '../i18n/translations.js';
+import i18n, { getInitialLanguage, changeLanguage } from '../i18n/index.js';
 
 const AuthContext = createContext(null);
 
@@ -10,17 +10,22 @@ export function AuthProvider({ children }) {
     const saved = localStorage.getItem('policypal_user');
     return saved ? JSON.parse(saved) : null;
   });
-  const [language, setLanguageState] = useState(() => {
-    return localStorage.getItem('policypal_lang') || 'en';
-  });
+  const [language, setLanguageState] = useState(() => getInitialLanguage());
   const [loading, setLoading] = useState(true);
 
   // Set language preference
   const setLanguage = useCallback((lang) => {
-    if (['en', 'te', 'hi'].includes(lang)) {
-      setLanguageState(lang);
-      localStorage.setItem('policypal_lang', lang);
-    }
+    changeLanguage(lang);
+    setLanguageState(lang);
+  }, []);
+
+  // Listen for language changes across the app
+  useEffect(() => {
+    const handleLangChange = (e) => {
+      setLanguageState(e.detail || i18n.language || 'en');
+    };
+    window.addEventListener('policypal:language-changed', handleLangChange);
+    return () => window.removeEventListener('policypal:language-changed', handleLangChange);
   }, []);
 
   // Sync token changes
@@ -29,7 +34,9 @@ export function AuthProvider({ children }) {
     setUser(newUser);
     localStorage.setItem('policypal_token', newToken);
     localStorage.setItem('policypal_user', JSON.stringify(newUser));
-    if (newUser?.preferred_language) {
+    // Never overwrite an existing localStorage language choice on login
+    const existing = localStorage.getItem('policypal_lang');
+    if (!existing && newUser?.preferred_language) {
       setLanguage(newUser.preferred_language);
     }
   }, [setLanguage]);
@@ -39,6 +46,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     localStorage.removeItem('policypal_token');
     localStorage.removeItem('policypal_user');
+    // Never reset language on logout
   }, []);
 
   // Fetch current user if token exists on initial mount
@@ -53,8 +61,8 @@ export function AuthProvider({ children }) {
         if (res.data?.success && res.data?.data?.user) {
           setUser(res.data.data.user);
           localStorage.setItem('policypal_user', JSON.stringify(res.data.data.user));
-          if (res.data.data.user.preferred_language) {
-            setLanguageState(res.data.data.user.preferred_language);
+          if (!localStorage.getItem('policypal_lang') && res.data.data.user.preferred_language) {
+            setLanguage(res.data.data.user.preferred_language);
           }
         }
       } catch (err) {
@@ -65,7 +73,7 @@ export function AuthProvider({ children }) {
       }
     }
     loadUser();
-  }, [token, clearSession]);
+  }, [token, clearSession, setLanguage]);
 
   // Auth actions
   const login = async (email, password) => {
@@ -103,10 +111,9 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Helper to translate key
-  const t = (key) => {
-    const currentDict = translations[language] || translations.en;
-    return currentDict[key] || translations.en[key] || key;
+  // Helper to translate key with i18next
+  const t = (key, options) => {
+    return i18n.t(key, options);
   };
 
   return (

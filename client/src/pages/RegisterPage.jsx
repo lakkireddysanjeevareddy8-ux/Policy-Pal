@@ -1,27 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { SUPPORTED_LANGUAGES } from '../i18n/languages.js';
+import { changeLanguage } from '../i18n/index.js';
 import { ShieldCheck, UserPlus, Loader2, Globe } from 'lucide-react';
 
 export default function RegisterPage() {
-  const { register, t } = useAuth();
+  const { t, i18n } = useTranslation();
+  const { register } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [prefLang, setPrefLang] = useState('en');
+  const [prefLang, setPrefLang] = useState(i18n.language || 'en');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    document.title = `${t('nav.appName')} - ${t('auth.registerTitle')}`;
+  }, [t]);
+
+  const handleLangChange = (code) => {
+    setPrefLang(code);
+    changeLanguage(code);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
     if (password.length < 8) {
-      setErrorMsg('Password must be at least 8 characters long');
+      setErrorMsg(t('auth.passwordPlaceholder'));
       return;
     }
 
@@ -29,11 +42,19 @@ export default function RegisterPage() {
     try {
       const res = await register(email, password, fullName, prefLang);
       if (res.success) {
-        showToast('Account created successfully! Welcome to PolicyPal.', 'success');
+        showToast(t('auth.registerSuccess'), 'success');
         navigate('/dashboard', { replace: true });
       }
     } catch (err) {
-      const message = err.response?.data?.error?.message || 'Registration failed. Please try again.';
+      const errCode = err.response?.data?.error?.code;
+      let message = t('errors.generic');
+      if (errCode === 'AUTH_EMAIL_EXISTS') {
+        message = t('errors.emailAlreadyExists');
+      } else if (errCode === 'VALIDATION_FAILED') {
+        message = t('errors.validationFailed');
+      } else if (err.response?.data?.error?.message) {
+        message = err.response.data.error.message;
+      }
       setErrorMsg(message);
       showToast(message, 'error');
     } finally {
@@ -48,9 +69,9 @@ export default function RegisterPage() {
           <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center mx-auto shadow-inner">
             <ShieldCheck className="w-7 h-7" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900">Create Citizen Profile</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{t('auth.registerTitle')}</h2>
           <p className="text-xs sm:text-sm text-slate-500">
-            Sign up to find eligible welfare schemes and track documents
+            {t('auth.registerSubtitle')}
           </p>
         </div>
 
@@ -62,36 +83,36 @@ export default function RegisterPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Full Name
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 text-start">
+              {t('auth.fullNameLabel')}
             </label>
             <input
               type="text"
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="e.g. Ramesh Kumar"
+              placeholder={t('auth.fullNamePlaceholder')}
               className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Email Address
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 text-start">
+              {t('auth.emailLabel')}
             </label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="citizen@example.com"
+              placeholder={t('auth.emailPlaceholder')}
               className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Password (min. 8 characters)
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 text-start">
+              {t('auth.passwordLabel')}
             </label>
             <input
               type="password"
@@ -99,71 +120,47 @@ export default function RegisterPage() {
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder={t('auth.passwordPlaceholder')}
               className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 text-start">
               <Globe className="w-3.5 h-3.5 text-slate-500" />
-              <span>Preferred Language</span>
+              <span>{t('auth.preferredLanguageLabel')}</span>
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setPrefLang('en')}
-                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition ${
-                  prefLang === 'en'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                English
-              </button>
-              <button
-                type="button"
-                onClick={() => setPrefLang('te')}
-                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition ${
-                  prefLang === 'te'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                తెలుగు
-              </button>
-              <button
-                type="button"
-                onClick={() => setPrefLang('hi')}
-                className={`py-2 px-3 text-xs font-semibold rounded-xl border transition ${
-                  prefLang === 'hi'
-                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                    : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                हिन्दी
-              </button>
-            </div>
+            <select
+              value={prefLang}
+              onChange={(e) => handleLangChange(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
+            >
+              {SUPPORTED_LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.nativeName} ({lang.name})
+                </option>
+              ))}
+            </select>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2 mt-2"
+            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2 mt-2 cursor-pointer"
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <UserPlus className="w-4 h-4" />
             )}
-            <span>Register Account</span>
+            <span>{loading ? t('auth.registering') : t('auth.submitRegister')}</span>
           </button>
         </form>
 
         <p className="text-center text-xs text-slate-500">
-          Already registered?{' '}
+          {t('auth.haveAccount')}{' '}
           <Link to="/login" className="font-semibold text-emerald-600 hover:underline">
-            Sign in here
+            {t('nav.login')}
           </Link>
         </p>
       </div>

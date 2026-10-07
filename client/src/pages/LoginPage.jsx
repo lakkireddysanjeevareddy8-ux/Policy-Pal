@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { ShieldCheck, LogIn, Sparkles, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const { login, loginWithDemo, t } = useAuth();
+  const { t } = useTranslation();
+  const { login, loginWithDemo } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -18,6 +20,10 @@ export default function LoginPage() {
 
   const redirectPath = location.state?.from?.pathname || '/dashboard';
 
+  useEffect(() => {
+    document.title = `${t('nav.appName')} - ${t('auth.loginTitle')}`;
+  }, [t]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -26,11 +32,19 @@ export default function LoginPage() {
     try {
       const res = await login(email, password);
       if (res.success) {
-        showToast('Successfully logged in!', 'success');
+        showToast(t('auth.loginSuccess'), 'success');
         navigate(redirectPath, { replace: true });
       }
     } catch (err) {
-      const message = err.response?.data?.error?.message || 'Login failed. Please check your credentials.';
+      const errCode = err.response?.data?.error?.code;
+      let message = t('errors.invalidCredentials');
+      if (errCode === 'AUTH_INVALID_CREDENTIALS') {
+        message = t('errors.invalidCredentials');
+      } else if (errCode === 'VALIDATION_FAILED') {
+        message = t('errors.validationFailed');
+      } else if (err.response?.data?.error?.message) {
+        message = err.response.data.error.message;
+      }
       setErrorMsg(message);
       showToast(message, 'error');
     } finally {
@@ -44,11 +58,11 @@ export default function LoginPage() {
     try {
       const res = await loginWithDemo();
       if (res.success) {
-        showToast('Logged in as Demo User (Ramesh Patel)', 'success');
+        showToast(t('auth.loginSuccess'), 'success');
         navigate(redirectPath, { replace: true });
       }
     } catch (err) {
-      const message = err.response?.data?.error?.message || 'Failed to connect to demo account.';
+      const message = t('errors.serverError');
       setErrorMsg(message);
       showToast(message, 'error');
     } finally {
@@ -64,29 +78,29 @@ export default function LoginPage() {
           <div className="w-12 h-12 bg-emerald-100 text-emerald-700 rounded-xl flex items-center justify-center mx-auto shadow-inner">
             <ShieldCheck className="w-7 h-7" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900">{t('login')} to PolicyPal</h2>
+          <h2 className="text-2xl font-bold text-slate-900">{t('auth.loginTitle')}</h2>
           <p className="text-xs sm:text-sm text-slate-500">
-            Access your government scheme assessments & document tracker
+            {t('auth.loginSubtitle')}
           </p>
         </div>
 
         {/* Demo Account Callout */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center space-y-2.5">
           <p className="text-xs text-amber-900 font-medium">
-            <strong>Testing?</strong> Use the pre-seeded demo farmer profile with existing scheme matches.
+            {t('landing.demoAccountPrompt')}
           </p>
           <button
             type="button"
             onClick={handleDemoLogin}
             disabled={demoLoading || loading}
-            className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-bold shadow-sm transition flex items-center justify-center gap-2"
+            className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm font-bold shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"
           >
             {demoLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Sparkles className="w-4 h-4" />
             )}
-            <span>{t('demoLogin')}</span>
+            <span>{t('auth.demoLoginButton')}</span>
           </button>
         </div>
 
@@ -99,23 +113,23 @@ export default function LoginPage() {
         {/* Traditional Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-              Email Address
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5 text-start">
+              {t('auth.emailLabel')}
             </label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g. citizen@example.com"
+              placeholder={t('auth.emailPlaceholder')}
               className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Password
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider text-start">
+                {t('auth.passwordLabel')}
               </label>
             </div>
             <input
@@ -123,7 +137,7 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
+              placeholder={t('auth.passwordPlaceholder')}
               className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition"
             />
           </div>
@@ -131,21 +145,21 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading || demoLoading}
-            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2 cursor-pointer"
           >
             {loading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <LogIn className="w-4 h-4" />
+              <LogIn className="w-4 h-4 rtl:rotate-180" />
             )}
-            <span>Sign In</span>
+            <span>{loading ? t('auth.loggingIn') : t('auth.submitLogin')}</span>
           </button>
         </form>
 
         <p className="text-center text-xs text-slate-500">
-          Don't have an account yet?{' '}
+          {t('auth.noAccount')}{' '}
           <Link to="/register" className="font-semibold text-emerald-600 hover:underline">
-            Register here
+            {t('nav.register')}
           </Link>
         </p>
       </div>

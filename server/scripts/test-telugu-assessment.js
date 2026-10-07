@@ -44,6 +44,9 @@ async function runTeluguAssessment() {
     console.log(`    Slug:   ${scheme?.slug}`);
     console.log(`    Score:  ${m.match_score}/100`);
     console.log(`    Reason: ${m.eligibility_reason}`);
+    if (m.assumptions_to_confirm?.length) {
+      console.log(`    Please confirm (Assumptions): ${JSON.stringify(m.assumptions_to_confirm)}`);
+    }
   });
 
   await closeDb();

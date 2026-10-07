@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SUPPORTED_LANG_CODES } from './constants.js';
 
 export const registerSchema = z.object({
   email: z.string().trim().email('Invalid email address').max(255),
@@ -12,7 +13,7 @@ export const registerSchema = z.object({
     .min(2, 'Full name must be at least 2 characters')
     .max(100),
   preferred_language: z
-    .enum(['en', 'te', 'hi'])
+    .enum(SUPPORTED_LANG_CODES)
     .optional()
     .default('en'),
 });
@@ -20,4 +21,8 @@ export const registerSchema = z.object({
 export const loginSchema = z.object({
   email: z.string().trim().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
+});
+
+export const updateLanguageSchema = z.object({
+  preferred_language: z.enum(SUPPORTED_LANG_CODES),
 });

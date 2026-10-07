@@ -16,7 +16,7 @@ export function validate(schema, source = 'body') {
         return res.status(400).json({
           success: false,
           error: {
-            code: 'VALIDATION_ERROR',
+            code: 'VALIDATION_FAILED',
             message: issues[0]?.message || 'Invalid input data',
             details: issues,
           },
