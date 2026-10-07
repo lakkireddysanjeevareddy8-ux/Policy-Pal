@@ -12,6 +12,7 @@ import schemeRoutes from './routes/scheme.routes.js';
 import documentRoutes from './routes/document.routes.js';
 import matchRoutes from './routes/match.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import assessmentRoutes from './routes/assessment.routes.js';
 import { notFoundHandler, centralErrorHandler } from './middleware/error.middleware.js';
 import { apiLimiter } from './middleware/rateLimiter.middleware.js';
 
@@ -69,6 +70,7 @@ app.use('/api/schemes', schemeRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/assessments', assessmentRoutes);
 
 // Catch 404
 app.use(notFoundHandler);
