@@ -42,7 +42,7 @@ async function mapConcurrent(items, limit, asyncFn) {
   return Promise.all(results);
 }
 
-// Generic Gemini caller with JSON mode, Zod validation, 1 retry, and clean 502 error
+// Generic Gemini caller with 25s timeout, exponential backoff on 429/503, JSON mode, and Zod validation
 async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description }) {
   const ai = getAiClient();
   if (!ai) {
@@ -55,7 +55,7 @@ async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description 
   while (attempts < 2) {
     attempts++;
     try {
-      const response = await ai.models.generateContent({
+      const generatePromise = ai.models.generateContent({
         model: GEMINI_MODEL,
         contents: prompt,
         config: {
@@ -65,6 +65,16 @@ async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description 
           temperature: 0.2,
         },
       });
+
+      // 25-second timeout protection
+      const timeoutPromise = new Promise((_, reject) => {
+        const id = setTimeout(() => {
+          clearTimeout(id);
+          reject(new Error('AI request timed out after 25 seconds'));
+        }, 25000);
+      });
+
+      const response = await Promise.race([generatePromise, timeoutPromise]);
 
       const responseText = response.text || '';
       let parsedJson;
@@ -86,16 +96,28 @@ async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description 
     } catch (err) {
       console.warn(`⚠️ [Gemini AI] Attempt ${attempts} failed for ${description}:`, err.message);
       lastError = err;
+
       if (attempts < 2) {
-        // Short pause before retry
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        // Backoff with extra delay on 429 (rate limit) or 503 (service unavailable)
+        const isRateLimitOrUnavailable =
+          err.status === 429 ||
+          err.status === 503 ||
+          err.message?.includes('429') ||
+          err.message?.includes('503') ||
+          err.message?.includes('RESOURCE_EXHAUSTED');
+
+        const delay = isRateLimitOrUnavailable ? attempts * 2500 : 1000;
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
 
-  const error502 = new Error(`AI service failed after retry: ${lastError?.message}`);
+  const error502 = new Error(
+    'Our AI scheme evaluation service is currently experiencing high demand. Please try again in a few moments.'
+  );
   error502.status = 502;
   error502.code = 'AI_SERVICE_UNAVAILABLE';
+  error502.details = lastError?.message;
   throw error502;
 }
 

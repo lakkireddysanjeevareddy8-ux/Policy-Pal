@@ -9,6 +9,46 @@ export async function createAssessment(req, res, next) {
   try {
     const userId = req.user.id;
     const { situation_text, language = 'en' } = req.body;
+    const trimmedText = situation_text.trim();
+
+    // 0. Cache check: If same user submitted identical situation_text & language within 24 hours, return saved assessment
+    const cachedRes = await query(
+      `SELECT id, user_id, situation_text, language, extracted_profile, ai_summary, archived, created_at, updated_at
+       FROM assessments
+       WHERE user_id = $1
+         AND situation_text = $2
+         AND language = $3
+         AND created_at >= NOW() - INTERVAL '24 hours'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId, trimmedText, language]
+    );
+
+    if (cachedRes.rows.length > 0) {
+      console.log(`⚡ [AI Cache Hit] Reusing existing assessment ${cachedRes.rows[0].id} from last 24h`);
+      const cachedAssessment = cachedRes.rows[0];
+
+      const matchesRes = await query(
+        'SELECT * FROM scheme_matches WHERE assessment_id = $1 AND user_id = $2 ORDER BY match_score DESC',
+        [cachedAssessment.id, userId]
+      );
+
+      const catalogRes = await query('SELECT * FROM schemes');
+      const catalogMap = new Map(catalogRes.rows.map((s) => [s.id, s]));
+      const enrichedMatches = await enrichMatchesWithReadiness(userId, matchesRes.rows, catalogMap);
+
+      return res.status(200).json({
+        success: true,
+        cached: true,
+        data: {
+          assessment: {
+            ...cachedAssessment,
+            missing_info: matchesRes.rows[0]?.missing_info || [],
+          },
+          matches: enrichedMatches,
+        },
+      });
+    }
 
     console.log(`🤖 Starting AI assessment workflow for user ${userId} in [${language}]...`);
 
@@ -112,6 +152,7 @@ export async function createAssessment(req, res, next) {
 
     return res.status(201).json({
       success: true,
+      cached: false,
       data: {
         assessment: {
           ...assessment,

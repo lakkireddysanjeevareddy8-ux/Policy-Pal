@@ -276,4 +276,31 @@ test('PolicyPal Security & Integration Test Suite', async (t) => {
     assert.ok(Array.isArray(dashRes.data.data.charts.status_funnel));
     assert.ok(typeof dashRes.data.data.charts.readiness_ring.ready_percent === 'number');
   });
+
+  await t.test('11. Caching: Identical assessment within 24 hours returns cached assessment', async () => {
+    const text = 'I am a 42 year old farmer with 3 acres land in Warangal, growing cotton';
+    const firstRes = await request('/api/assessments', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userAToken}` },
+      body: { situation_text: text, language: 'en' },
+    });
+    assert.equal(firstRes.status, 201);
+    assert.equal(firstRes.data.cached, false);
+
+    const secondRes = await request('/api/assessments', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${userAToken}` },
+      body: { situation_text: text, language: 'en' },
+    });
+    assert.equal(secondRes.status, 200);
+    assert.equal(secondRes.data.cached, true);
+    assert.equal(secondRes.data.data.assessment.id, firstRes.data.data.assessment.id);
+  });
+
+  await t.test('12. Seed script is idempotent and can be safely re-run', async () => {
+    await assert.doesNotReject(async () => {
+      await runSeed();
+    });
+  });
 });
+

@@ -21,6 +21,15 @@ export default function Header() {
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [wakingUp, setWakingUp] = useState(false);
+
+  React.useEffect(() => {
+    const handleWakingUp = (e) => {
+      setWakingUp(Boolean(e.detail));
+    };
+    window.addEventListener('policypal:waking-up', handleWakingUp);
+    return () => window.removeEventListener('policypal:waking-up', handleWakingUp);
+  }, []);
 
   const isActive = (path) => location.pathname === path;
 
@@ -41,6 +50,14 @@ export default function Header() {
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
       {/* Indian Tricolor Stripe */}
       <div className="tiranga-bar" />
+
+      {/* Waking Up The Server Banner */}
+      {wakingUp && (
+        <div className="bg-amber-500 text-white text-xs font-semibold py-2 px-4 text-center flex items-center justify-center gap-2 animate-pulse shadow-inner">
+          <Sparkles className="w-4 h-4 animate-spin text-amber-200" />
+          <span>Waking up the server (Render free-tier cold start)... Please hold on for a moment!</span>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
