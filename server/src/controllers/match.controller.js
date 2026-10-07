@@ -3,11 +3,20 @@ import { query } from '../db/index.js';
 export async function getMatches(req, res, next) {
   try {
     const userId = req.user.id;
-    const { status, category, min_score, sort_by = 'score', order = 'desc' } = req.query;
+    const { q, status, category, min_score, sort_by = 'score', order = 'desc' } = req.query;
 
     const conditions = ['sm.user_id = $1'];
     const params = [userId];
     let paramIndex = 2;
+
+    if (q && q.trim()) {
+      const searchTerm = `%${q.trim()}%`;
+      conditions.push(
+        `(s.name ILIKE $${paramIndex} OR s.name_te ILIKE $${paramIndex} OR s.name_hi ILIKE $${paramIndex} OR sm.eligibility_reason ILIKE $${paramIndex} OR sm.ai_checklist::text ILIKE $${paramIndex})`
+      );
+      params.push(searchTerm);
+      paramIndex++;
+    }
 
     if (status && status !== 'all') {
       conditions.push(`sm.status = $${paramIndex}`);
@@ -117,6 +126,9 @@ export async function getMatches(req, res, next) {
     // Client/query sorting
     enrichedMatches.sort((a, b) => {
       const dir = order === 'asc' ? 1 : -1;
+      if (sort_by === 'date') {
+        return (new Date(b.created_at) - new Date(a.created_at)) * dir;
+      }
       if (sort_by === 'readiness') {
         if (a.readiness_percent !== b.readiness_percent) {
           return (a.readiness_percent - b.readiness_percent) * dir;

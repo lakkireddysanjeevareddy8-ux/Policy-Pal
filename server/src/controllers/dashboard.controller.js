@@ -80,6 +80,31 @@ export async function getDashboard(req, res, next) {
       overallReadinessPercent = Math.round((readyDocsSet.size / 16) * 100);
     }
 
+    // Category Distribution for charts
+    const categoryCounts = {};
+    const statusCounts = { saved: 0, applying: 0, applied: 0, rejected: 0 };
+
+    matchesRes.rows.forEach((m) => {
+      const cat = m.category || 'other';
+      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+      if (statusCounts[m.status] !== undefined) {
+        statusCounts[m.status]++;
+      } else {
+        statusCounts[m.status] = 1;
+      }
+    });
+
+    const categoryDistribution = Object.entries(categoryCounts).map(([cat, count]) => ({
+      category: cat,
+      count,
+    }));
+
+    const statusFunnel = [
+      { status: 'saved', label: 'Saved Schemes', count: statusCounts.saved || 0, fill: '#3b82f6' },
+      { status: 'applying', label: 'In Progress (Applying)', count: statusCounts.applying || 0, fill: '#f59e0b' },
+      { status: 'applied', label: 'Applied (Submitted)', count: statusCounts.applied || 0, fill: '#10b981' },
+    ];
+
     // Top 3 closest to ready schemes
     // Priority: highest readiness_percent, then highest match_score
     schemeReadinessList.sort((a, b) => {
@@ -100,6 +125,15 @@ export async function getDashboard(req, res, next) {
           total_ready_documents: readyDocsSet.size,
           total_tracked_documents: uniqueRequiredDocs.size || 16,
           overall_document_readiness_percent: overallReadinessPercent,
+        },
+        charts: {
+          category_distribution: categoryDistribution,
+          status_funnel: statusFunnel,
+          readiness_ring: {
+            ready_percent: overallReadinessPercent,
+            ready_count: readyDocsSet.size,
+            total_count: uniqueRequiredDocs.size || 16,
+          },
         },
         top_closest_to_ready_schemes: topClosestSchemes,
       },

@@ -32,6 +32,7 @@ export default function MyApplicationsPage() {
       setLoading(true);
       const res = await api.get('/matches', {
         params: {
+          q: searchTerm.trim() || undefined,
           status: statusFilter,
           category: categoryFilter,
           sort_by: sortBy,
@@ -49,8 +50,11 @@ export default function MyApplicationsPage() {
   };
 
   useEffect(() => {
-    fetchMatches();
-  }, [statusFilter, categoryFilter, sortBy]);
+    const delayDebounce = setTimeout(() => {
+      fetchMatches();
+    }, 250);
+    return () => clearTimeout(delayDebounce);
+  }, [statusFilter, categoryFilter, sortBy, searchTerm]);
 
   const handleStatusChange = async (matchId, newStatus) => {
     try {
@@ -162,6 +166,16 @@ export default function MyApplicationsPage() {
               }`}
             >
               By Readiness
+            </button>
+            <button
+              onClick={() => setSortBy('date')}
+              className={`px-3 py-1.5 rounded-lg font-semibold transition ${
+                sortBy === 'date'
+                  ? 'bg-white text-slate-900 shadow font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              By Date
             </button>
           </div>
         </div>

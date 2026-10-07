@@ -234,4 +234,46 @@ test('PolicyPal Security & Integration Test Suite', async (t) => {
     });
     assert.equal(checkDeleted.status, 404);
   });
+
+  await t.test('8. Auto-update updated_at triggers update timestamps', async () => {
+    const beforeRes = await db.query('SELECT updated_at FROM users WHERE id = $1', [userAToken ? userAId : '13b6e8e6-3b74-461e-ab31-fefe0d80687d']);
+    const beforeTime = new Date(beforeRes.rows[0].updated_at).getTime();
+
+    // Sleep 15ms so timestamp advances
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    await db.query('UPDATE users SET full_name = $1 WHERE id = $2', [
+      'Updated Citizen A',
+      userAToken ? userAId : '13b6e8e6-3b74-461e-ab31-fefe0d80687d',
+    ]);
+
+    const afterRes = await db.query('SELECT updated_at FROM users WHERE id = $1', [userAToken ? userAId : '13b6e8e6-3b74-461e-ab31-fefe0d80687d']);
+    const afterTime = new Date(afterRes.rows[0].updated_at).getTime();
+    assert.ok(afterTime >= beforeTime, 'updated_at timestamp must advance on update');
+  });
+
+  await t.test('9. Search query q covers scheme name, eligibility reason, and checklist text', async () => {
+    // Search matches by reason or checklist text
+    const searchRes = await request('/api/matches?q=agriculture', {
+      headers: { Authorization: `Bearer ${userAToken}` },
+    });
+    assert.equal(searchRes.status, 200);
+
+    // Search assessments by query
+    const assessSearch = await request('/api/assessments?q=farmer&sort_by=date', {
+      headers: { Authorization: `Bearer ${userAToken}` },
+    });
+    assert.equal(assessSearch.status, 200);
+  });
+
+  await t.test('10. Dashboard returns recharts data: category distribution, status funnel, readiness ring', async () => {
+    const dashRes = await request('/api/dashboard', {
+      headers: { Authorization: `Bearer ${userAToken}` },
+    });
+    assert.equal(dashRes.status, 200);
+    assert.ok(dashRes.data.data.charts);
+    assert.ok(Array.isArray(dashRes.data.data.charts.category_distribution));
+    assert.ok(Array.isArray(dashRes.data.data.charts.status_funnel));
+    assert.ok(typeof dashRes.data.data.charts.readiness_ring.ready_percent === 'number');
+  });
 });

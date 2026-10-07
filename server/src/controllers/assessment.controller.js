@@ -128,7 +128,7 @@ export async function createAssessment(req, res, next) {
 export async function getAssessments(req, res, next) {
   try {
     const userId = req.user.id;
-    const { archived, q } = req.query;
+    const { archived, q, sort_by = 'date', order = 'desc' } = req.query;
 
     const conditions = ['a.user_id = $1'];
     const params = [userId];
@@ -148,17 +148,27 @@ export async function getAssessments(req, res, next) {
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
+    let orderByClause = 'ORDER BY a.created_at DESC';
+    const direction = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+    if (sort_by === 'score') {
+      orderByClause = `ORDER BY COALESCE(MAX(sm.match_score), 0) ${direction}, a.created_at DESC`;
+    } else if (sort_by === 'date') {
+      orderByClause = `ORDER BY a.created_at ${direction}`;
+    }
+
     const assessmentsRes = await query(
       `SELECT
          a.id, a.user_id, a.situation_text, a.language,
          a.extracted_profile, a.ai_summary, a.archived,
          a.created_at, a.updated_at,
-         COUNT(sm.id)::int as matches_count
+         COUNT(sm.id)::int as matches_count,
+         COALESCE(MAX(sm.match_score), 0)::int as top_score
        FROM assessments a
        LEFT JOIN scheme_matches sm ON sm.assessment_id = a.id
        ${whereClause}
        GROUP BY a.id
-       ORDER BY a.created_at DESC`,
+       ${orderByClause}`,
       params
     );
 

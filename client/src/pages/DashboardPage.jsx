@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api/client.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import ReadinessBadge from '../components/ReadinessBadge.jsx';
 import {
   Sparkles,
@@ -13,52 +14,127 @@ import {
   ArrowRight,
   TrendingUp,
   AlertCircle,
-  ExternalLink,
   ChevronRight,
   Calendar,
+  RotateCw,
+  Archive,
+  ArchiveRestore,
+  BarChart3,
+  PieChart as PieChartIcon,
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts';
 
 export default function DashboardPage() {
   const { user, t, language } = useAuth();
+  const { showToast } = useToast();
+
   const [stats, setStats] = useState(null);
+  const [charts, setCharts] = useState(null);
   const [topSchemes, setTopSchemes] = useState([]);
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState({});
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function fetchDashboardData() {
-      try {
-        setLoading(true);
-        const [dashRes, assessRes] = await Promise.all([
-          api.get('/dashboard'),
-          api.get('/assessments'),
-        ]);
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      const [dashRes, assessRes] = await Promise.all([
+        api.get('/dashboard'),
+        api.get('/assessments'),
+      ]);
 
-        if (dashRes.data?.success) {
-          setStats(dashRes.data.data.stats);
-          setTopSchemes(dashRes.data.data.top_closest_to_ready_schemes || []);
-        }
-
-        if (assessRes.data?.success) {
-          setAssessments(assessRes.data.data.assessments || []);
-        }
-      } catch (err) {
-        console.error('Error fetching dashboard data:', err);
-        setError('Failed to load dashboard. Please refresh or try again.');
-      } finally {
-        setLoading(false);
+      if (dashRes.data?.success) {
+        setStats(dashRes.data.data.stats);
+        setCharts(dashRes.data.data.charts);
+        setTopSchemes(dashRes.data.data.top_closest_to_ready_schemes || []);
       }
-    }
 
+      if (assessRes.data?.success) {
+        setAssessments(assessRes.data.data.assessments || []);
+      }
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Failed to load dashboard. Please refresh or try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchDashboardData();
   }, []);
+
+  const handleRerun = async (assessmentId, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActionLoading((prev) => ({ ...prev, [assessmentId]: 'rerun' }));
+
+    try {
+      const res = await api.post(`/assessments/${assessmentId}/rerun`);
+      if (res.data?.success) {
+        showToast('Assessment re-evaluated with Gemini AI!', 'success');
+        await fetchDashboardData();
+      }
+    } catch (err) {
+      showToast('Failed to rerun assessment', 'error');
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [assessmentId]: null }));
+    }
+  };
+
+  const handleToggleArchive = async (assessmentId, currentArchived, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActionLoading((prev) => ({ ...prev, [assessmentId]: 'archive' }));
+
+    try {
+      const res = await api.patch(`/assessments/${assessmentId}`, {
+        archived: !currentArchived,
+      });
+      if (res.data?.success) {
+        showToast(
+          !currentArchived ? 'Assessment archived' : 'Assessment unarchived',
+          'info'
+        );
+        setAssessments((prev) =>
+          prev.map((a) => (a.id === assessmentId ? { ...a, archived: !currentArchived } : a))
+        );
+      }
+    } catch (err) {
+      showToast('Failed to update archive status', 'error');
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [assessmentId]: null }));
+    }
+  };
 
   const getSchemeName = (scheme) => {
     if (language === 'te' && scheme.name_te) return scheme.name_te;
     if (language === 'hi' && scheme.name_hi) return scheme.name_hi;
     return scheme.name;
   };
+
+  const CATEGORY_COLORS = [
+    '#059669', // Emerald
+    '#f59e0b', // Amber
+    '#3b82f6', // Blue
+    '#8b5cf6', // Purple
+    '#ec4899', // Pink
+    '#14b8a6', // Teal
+    '#f97316', // Orange
+    '#6366f1', // Indigo
+  ];
 
   if (loading) {
     return (
@@ -73,6 +149,17 @@ export default function DashboardPage() {
       </div>
     );
   }
+
+  const categoryChartData = (charts?.category_distribution || []).map((item) => ({
+    name: item.category.replace('_', ' ').toUpperCase(),
+    schemes: item.count,
+  }));
+
+  const readinessPercent = stats?.overall_document_readiness_percent || 0;
+  // Circular ring stroke offset
+  const radius = 45;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (readinessPercent / 100) * circumference;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -154,9 +241,7 @@ export default function DashboardPage() {
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
               {t('overallReadiness')}
             </p>
-            <p className="text-3xl font-extrabold text-teal-600">
-              {stats?.overall_document_readiness_percent || 0}%
-            </p>
+            <p className="text-3xl font-extrabold text-teal-600">{readinessPercent}%</p>
             <Link to="/documents" className="text-xs font-semibold text-teal-600 hover:underline">
               Manage documents →
             </Link>
@@ -174,12 +259,142 @@ export default function DashboardPage() {
             </p>
             <p className="text-3xl font-extrabold text-slate-900">
               {stats?.total_ready_documents || 0}
-              <span className="text-sm font-normal text-slate-400"> / {stats?.total_tracked_documents || 16}</span>
+              <span className="text-sm font-normal text-slate-400">
+                {' '}
+                / {stats?.total_tracked_documents || 16}
+              </span>
             </p>
             <span className="text-xs text-slate-400">Shared across schemes</span>
           </div>
           <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
             <FileCheck2 className="w-6 h-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* DATA VISUALIZATION SECTION: Recharts & Funnel */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 1. Category Distribution Bar Chart */}
+        <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-emerald-600" />
+                <span>Eligible Schemes by Category</span>
+              </h3>
+              <p className="text-xs text-slate-500">Distribution across national welfare domains</p>
+            </div>
+          </div>
+
+          <div className="h-64 w-full">
+            {categoryChartData.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                No scheme matches to display yet.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={categoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fontSize: 10, fill: '#64748b' }}
+                    interval={0}
+                    angle={-20}
+                    textAnchor="end"
+                  />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#0f172a',
+                      borderRadius: '12px',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '12px',
+                    }}
+                  />
+                  <Bar dataKey="schemes" radius={[6, 6, 0, 0]}>
+                    {categoryChartData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        {/* 2. Overall Readiness Ring & Status Funnel */}
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-6 flex flex-col justify-between">
+          <div className="space-y-1">
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-teal-600" />
+              <span>Readiness Ring</span>
+            </h3>
+            <p className="text-xs text-slate-500">Portfolio certificate completion</p>
+          </div>
+
+          {/* SVG Animated Circular Progress Ring */}
+          <div className="flex items-center justify-center py-2">
+            <div className="relative w-36 h-36 flex items-center justify-center">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                {/* Background Ring */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r={radius}
+                  stroke="#e2e8f0"
+                  strokeWidth="8"
+                  fill="transparent"
+                />
+                {/* Progress Ring */}
+                <circle
+                  cx="50"
+                  cy="50"
+                  r={radius}
+                  stroke={readinessPercent >= 75 ? '#059669' : readinessPercent >= 40 ? '#f59e0b' : '#ef4444'}
+                  strokeWidth="8"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  fill="transparent"
+                  className="transition-all duration-1000 ease-out"
+                />
+              </svg>
+              <div className="absolute flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-extrabold text-slate-900">{readinessPercent}%</span>
+                <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Readiness
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 3. Status Funnel (Saved -> Applying -> Applied) */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+              Application Funnel
+            </span>
+            <div className="space-y-1.5">
+              {(charts?.status_funnel || []).map((step) => (
+                <div
+                  key={step.status}
+                  className="flex items-center justify-between text-xs p-2 rounded-xl bg-slate-50 border border-slate-200/80"
+                >
+                  <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: step.fill }}
+                    />
+                    {step.label}
+                  </span>
+                  <span className="font-bold text-slate-900 px-2 py-0.5 rounded bg-white border border-slate-200">
+                    {step.count}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -266,7 +481,7 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Recent Assessments History */}
+      {/* Recent Assessments History with Quick Rerun & Archive Actions */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
@@ -275,7 +490,7 @@ export default function DashboardPage() {
               <span>Assessment History</span>
             </h2>
             <p className="text-xs text-slate-500">
-              Previous eligibility evaluations generated with Gemini AI
+              Previous evaluations with instant Re-run AI and Archive actions
             </p>
           </div>
         </div>
@@ -286,23 +501,35 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm divide-y divide-slate-100">
-            {assessments.slice(0, 5).map((a) => (
+            {assessments.map((a) => (
               <div
                 key={a.id}
-                className="p-4 sm:p-5 hover:bg-slate-50/80 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+                className="p-4 sm:p-5 hover:bg-slate-50/80 transition flex flex-col md:flex-row items-start md:items-center justify-between gap-4"
               >
-                <div className="space-y-1.5 max-w-2xl">
-                  <div className="flex items-center gap-2">
+                <div className="space-y-1.5 max-w-xl">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
                       {a.language?.toUpperCase() || 'EN'}
                     </span>
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-500">
+                      <strong>Created:</strong>{' '}
                       {new Date(a.created_at).toLocaleDateString('en-IN', {
                         day: 'numeric',
                         month: 'short',
                         year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
                       })}
                     </span>
+                    {a.updated_at && a.updated_at !== a.created_at && (
+                      <span className="text-xs text-slate-400">
+                        • Updated:{' '}
+                        {new Date(a.updated_at).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                        })}
+                      </span>
+                    )}
                     {a.archived && (
                       <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded">
                         Archived
@@ -315,16 +542,53 @@ export default function DashboardPage() {
                   <p className="text-xs text-slate-500 line-clamp-1">{a.ai_summary}</p>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                {/* Actions: Re-run AI, Archive, View */}
+                <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                  <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 mr-1">
                     {a.matches_count || 0} Schemes Found
                   </span>
+
+                  <button
+                    type="button"
+                    onClick={(e) => handleRerun(a.id, e)}
+                    disabled={actionLoading[a.id] === 'rerun'}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition"
+                    title="Re-run Gemini AI evaluation"
+                  >
+                    <RotateCw
+                      className={`w-3.5 h-3.5 ${
+                        actionLoading[a.id] === 'rerun' ? 'animate-spin text-emerald-600' : ''
+                      }`}
+                    />
+                    <span className="hidden sm:inline">Re-run AI</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => handleToggleArchive(a.id, a.archived, e)}
+                    disabled={actionLoading[a.id] === 'archive'}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 flex items-center gap-1 transition"
+                    title={a.archived ? 'Unarchive' : 'Archive'}
+                  >
+                    {a.archived ? (
+                      <>
+                        <ArchiveRestore className="w-3.5 h-3.5 text-amber-600" />
+                        <span className="hidden sm:inline">Unarchive</span>
+                      </>
+                    ) : (
+                      <>
+                        <Archive className="w-3.5 h-3.5 text-slate-500" />
+                        <span className="hidden sm:inline">Archive</span>
+                      </>
+                    )}
+                  </button>
+
                   <Link
                     to={`/assessments/${a.id}`}
-                    className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition"
+                    className="p-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg transition"
                     title="View Assessment"
                   >
-                    <ChevronRight className="w-5 h-5" />
+                    <ChevronRight className="w-4 h-4" />
                   </Link>
                 </div>
               </div>
