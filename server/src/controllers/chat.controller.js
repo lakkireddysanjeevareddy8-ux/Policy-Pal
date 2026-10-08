@@ -38,6 +38,7 @@ export async function sendMessage(req, res, next) {
 
     let conversationId = providedConvId;
 
+    let currentStep = 'database write (conversation setup)';
     // Verify existing conversation ownership or create a new one
     if (conversationId) {
       const convCheck = await query(
@@ -66,6 +67,7 @@ export async function sendMessage(req, res, next) {
     }
 
     // Save user message (redacted)
+    currentStep = 'database write (user message)';
     await query(
       `INSERT INTO chat_messages (conversation_id, user_id, role, content, detected_language, input_mode)
        VALUES ($1, $2, 'user', $3, $4, $5)`,
@@ -73,6 +75,7 @@ export async function sendMessage(req, res, next) {
     );
 
     // Call grounded Gemini AI Chat Service
+    currentStep = 'Gemini generation';
     const aiResponse = await generateChatReply({
       userId,
       conversationId,
@@ -82,6 +85,7 @@ export async function sendMessage(req, res, next) {
     });
 
     // Save assistant reply
+    currentStep = 'database write (assistant message)';
     await query(
       `INSERT INTO chat_messages (conversation_id, user_id, role, content, detected_language, input_mode, actions)
        VALUES ($1, $2, 'assistant', $3, $4, 'text', $5::jsonb)`,
@@ -95,6 +99,7 @@ export async function sendMessage(req, res, next) {
     );
 
     // Update conversation timestamp
+    currentStep = 'database write (update conversation)';
     await query(
       `UPDATE chat_conversations SET updated_at = NOW() WHERE id = $1 AND user_id = $2`,
       [conversationId, userId]
@@ -111,6 +116,11 @@ export async function sendMessage(req, res, next) {
       },
     });
   } catch (err) {
+    const failedStep = err.step || currentStep;
+    const status = err.status || (err.code === 'CHAT_UNAVAILABLE' ? 502 : 500);
+    console.error(
+      `[Chat Controller] Error in chat pipeline | Step: ${failedStep} | Error: ${err.name} | Status: ${status} | Message: ${err.message}`
+    );
     if (err.code === 'CHAT_UNAVAILABLE' || err.status === 502) {
       return res.status(502).json({
         success: false,

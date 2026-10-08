@@ -141,7 +141,17 @@ export async function generateChatReply({
   }
 
   // Build context
-  const context = await buildChatContext(userId, conversationId);
+  let context;
+  try {
+    context = await buildChatContext(userId, conversationId);
+  } catch (err) {
+    console.error(`[Chat Service] Step: context building | Error: ${err.name} | Status: ${err.status || 500} | Message: ${err.message}`);
+    const contextErr = new Error(`Context building failed: ${err.message}`);
+    contextErr.status = 502;
+    contextErr.code = 'CHAT_UNAVAILABLE';
+    contextErr.step = 'context building';
+    throw contextErr;
+  }
 
   // Construct prompt payload
   const promptContext = {
@@ -181,7 +191,9 @@ Respond as PolicyPal Assistant following all system rules. Output strictly valid
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const currentModel = modelsToTry[attempt] || modelsToTry[0];
+    let stepFailed = 'Gemini call';
     try {
+      stepFailed = 'Gemini call';
       const response = await ai.models.generateContent({
         model: currentModel,
         contents: userInstruction,
@@ -222,6 +234,7 @@ Respond as PolicyPal Assistant following all system rules. Output strictly valid
       });
 
       const rawText = response.text || '';
+      stepFailed = 'JSON parse';
       let parsed;
       try {
         parsed = JSON.parse(rawText.trim());
@@ -230,6 +243,7 @@ Respond as PolicyPal Assistant following all system rules. Output strictly valid
       }
 
       // Validate schema
+      stepFailed = 'Zod validation';
       const validated = GeminiChatOutputSchema.parse(parsed);
 
       // Server-side validation of actions: only allow valid catalog slugs for open_scheme
@@ -249,8 +263,11 @@ Respond as PolicyPal Assistant following all system rules. Output strictly valid
         actions: sanitizedActions,
       };
     } catch (err) {
+      err.step = stepFailed;
       lastError = err;
-      console.warn(`⚠️ [Gemini Chat] Attempt ${attempt + 1} failed: ${err.message}`);
+      console.error(
+        `[Chat Service] Attempt ${attempt + 1} failed | Step: ${stepFailed} | Model: ${currentModel} | Error: ${err.name} | Status: ${err.status || 502} | Message: ${err.message}`
+      );
       if (attempt === 0) {
         await new Promise((res) => setTimeout(res, 1000));
       }
@@ -260,6 +277,10 @@ Respond as PolicyPal Assistant following all system rules. Output strictly valid
   const chatError = new Error('PolicyPal Assistant is temporarily unavailable. Please try again in a few moments.');
   chatError.status = 502;
   chatError.code = 'CHAT_UNAVAILABLE';
+  chatError.step = lastError?.step || 'Gemini call';
   chatError.originalError = lastError?.message;
+  console.error(
+    `[Chat Service] Exhausted retries | Step: ${chatError.step} | Error: ${lastError?.name || 'Error'} | Status: 502 | Message: ${lastError?.message}`
+  );
   throw chatError;
 }
