@@ -157,6 +157,21 @@ async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description 
         }
       }
 
+      // Normalize checklist items if keys differ (e.g. title/description -> step/detail)
+      if (description.startsWith('buildChecklist') && Array.isArray(parsedJson)) {
+        parsedJson = parsedJson.map((item, idx) => {
+          if (typeof item === 'string') {
+            return { step: `Step ${idx + 1}`, detail: item };
+          }
+          if (typeof item === 'object' && item !== null) {
+            const step = item.step || item.title || item.name || item.action || item.stage || `Step ${idx + 1}`;
+            const detail = item.detail || item.description || item.details || item.instructions || item.instruction || item.text || step;
+            return { step: String(step), detail: String(detail) };
+          }
+          return item;
+        });
+      }
+
       // Validate with Zod
       const validationResult = zodSchema.safeParse(parsedJson);
       if (!validationResult.success) {
