@@ -10,10 +10,10 @@ Follow the steps in the exact sequence outlined below.
 
 ```mermaid
 flowchart LR
-    Citizen((Indian Citizen)) -->|HTTPS| Vercel[Vercel Frontend\nReact + Vite SPA]
-    Vercel -->|REST API with JWT| Render[Render Backend\nExpress Server Node.js]
-    Render -->|Pooled SSL Query| Supabase[(Supabase\nPostgreSQL 15+)]
-    Render -->|AI Prompts & Extraction| Gemini[Google Gemini 2.5 Flash]
+    Citizen(("Indian Citizen")) -->|"HTTPS"| Vercel["Vercel Frontend (React + Vite SPA)"]
+    Vercel -->|"REST API with JWT"| Render["Render Backend (Express Server Node.js)"]
+    Render -->|"Pooled SSL Query"| Supabase[("Supabase (PostgreSQL 15+)")]
+    Render -->|"AI Prompts and Extraction"| Gemini["Google Gemini 2.5 Flash"]
 ```
 
 ---
