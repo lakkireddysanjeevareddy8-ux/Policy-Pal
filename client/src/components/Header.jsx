@@ -37,16 +37,20 @@ export default function Header() {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
-  const navLinks = [
-    { name: t('nav.dashboard', 'Dashboard'), path: '/dashboard', authRequired: true, icon: LayoutDashboard },
-    { name: t('nav.newCheck', 'New Scheme Check'), path: '/assessments/new', authRequired: true, icon: Sparkles },
-    { name: t('nav.myApplications', 'My Applications'), path: '/applications', authRequired: true, icon: Layers },
-    { name: t('nav.docTracker', 'Document Tracker'), path: '/documents', authRequired: true, icon: FileCheck2 },
-    { name: t('nav.browseSchemes', 'Browse Schemes'), path: '/schemes', authRequired: false, icon: Compass },
-  ];
+  const navLinks = isAuthenticated
+    ? [
+        { name: t('nav.dashboard', 'Dashboard'), path: '/dashboard', icon: LayoutDashboard },
+        { name: t('nav.newCheck', 'New Assessment'), path: '/assessments/new', icon: Sparkles },
+        { name: t('nav.myApplications', 'My Applications'), path: '/applications', icon: Layers },
+        { name: t('nav.docTracker', 'Documents'), path: '/documents', icon: FileCheck2 },
+        { name: t('nav.profile', 'Profile'), path: '/profile', icon: User },
+      ]
+    : [
+        { name: t('nav.browseSchemes', 'Browse Schemes'), path: '/schemes', icon: Compass },
+      ];
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
@@ -83,26 +87,24 @@ export default function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-1 lg:space-x-2">
-            {navLinks
-              .filter((link) => !link.authRequired || isAuthenticated)
-              .map((link) => {
-                const Icon = link.icon;
-                const active = isActive(link.path);
-                return (
-                  <Link
-                    key={link.path}
-                    to={link.path}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
-                      active
-                        ? 'bg-emerald-50 text-emerald-700 font-semibold'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Icon className={`w-4 h-4 ${active ? 'text-emerald-600' : 'text-slate-400'}`} />
-                    {link.name}
-                  </Link>
-                );
-              })}
+            {navLinks.map((link) => {
+              const Icon = link.icon;
+              const active = isActive(link.path);
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                    active
+                      ? 'bg-emerald-50 text-emerald-700 font-semibold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${active ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  {link.name}
+                </Link>
+              );
+            })}
           </nav>
 
           {/* Language Switcher & User Actions */}
@@ -169,22 +171,20 @@ export default function Header() {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-6 space-y-4 shadow-lg animate-in slide-in-from-top-2 duration-200">
           <div className="space-y-1">
-            {navLinks
-              .filter((link) => !link.authRequired || isAuthenticated)
-              .map((link) => {
-                const Icon = link.icon;
-                return (
-                  <Link
-                    key={link.path}
-                    to={link.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-base font-medium text-slate-700 hover:bg-slate-100"
-                  >
-                    <Icon className="w-5 h-5 text-emerald-600" />
-                    {link.name}
-                  </Link>
-                );
-              })}
+            {navLinks.map((link) => {
+              const Icon = link.icon;
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-base font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  <Icon className="w-5 h-5 text-emerald-600" />
+                  {link.name}
+                </Link>
+              );
+            })}
           </div>
 
           <div className="pt-3 border-t border-slate-100">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
@@ -12,12 +12,26 @@ import {
 
 export default function LandingPage() {
   const { t } = useTranslation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
   const [demoAadhaarChecked, setDemoAadhaarChecked] = useState(true);
 
   useEffect(() => {
     document.title = `${t('nav.appName')} - ${t('landing.heroTitle')}`;
   }, [t]);
+
+  // Avoid flash of landing content while token verification is pending
+  if (loading) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  }
+
+  // Redirect authenticated users immediately to dashboard
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-slate-50">
@@ -43,7 +57,7 @@ export default function LandingPage() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
               <Link
-                to={isAuthenticated ? '/assessments/new' : '/register'}
+                to="/register"
                 className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-base text-white bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-600/30 transition transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
               >
                 <span>{t('landing.checkEligibility')}</span>
@@ -59,11 +73,11 @@ export default function LandingPage() {
               </Link>
             </div>
 
-            {/* Quick stats banner */}
+            {/* Factual stats banner */}
             <div className="pt-10 grid grid-cols-2 sm:grid-cols-4 gap-4 text-start">
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                <p className="text-2xl font-extrabold text-slate-900">20+</p>
-                <p className="text-xs text-slate-500 font-medium">{t('scheme.allCategories')}</p>
+                <p className="text-2xl font-extrabold text-slate-900">20</p>
+                <p className="text-xs text-slate-500 font-medium">{t('landing.statsCuratedSchemes')}</p>
               </div>
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <p className="text-2xl font-extrabold text-emerald-600">13</p>
@@ -71,11 +85,11 @@ export default function LandingPage() {
               </div>
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <p className="text-2xl font-extrabold text-amber-600">16</p>
-                <p className="text-xs text-slate-500 font-medium">{t('documents.trackerTitle')}</p>
+                <p className="text-xs text-slate-500 font-medium">{t('landing.statsDocumentTypes')}</p>
               </div>
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <p className="text-2xl font-extrabold text-teal-600">100%</p>
-                <p className="text-xs text-slate-500 font-medium">{t('landing.whyFeature4Title')}</p>
+                <p className="text-xs text-slate-500 font-medium">{t('landing.statsCrossSchemeSync')}</p>
               </div>
             </div>
           </div>
@@ -265,31 +279,33 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="bg-emerald-700 py-16 text-white text-center">
-        <div className="max-w-4xl mx-auto px-4 space-y-6">
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
-            {t('landing.ctaTitle')}
-          </h2>
-          <p className="text-emerald-100 text-base sm:text-lg max-w-xl mx-auto">
-            {t('landing.ctaSubtitle')}
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              to="/register"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-emerald-900 bg-white hover:bg-slate-100 shadow-lg transition"
-            >
-              {t('landing.getStartedNow')}
-            </Link>
-            <Link
-              to="/login"
-              className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-white bg-emerald-800 hover:bg-emerald-900 border border-emerald-600 transition"
-            >
-              {t('nav.demoLogin')}
-            </Link>
+      {/* CTA Section - only render for unauthenticated users */}
+      {!isAuthenticated && (
+        <section className="bg-emerald-700 py-16 text-white text-center">
+          <div className="max-w-4xl mx-auto px-4 space-y-6">
+            <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+              {t('landing.ctaTitle')}
+            </h2>
+            <p className="text-emerald-100 text-base sm:text-lg max-w-xl mx-auto">
+              {t('landing.ctaSubtitle')}
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <Link
+                to="/register"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-emerald-900 bg-white hover:bg-slate-100 shadow-lg transition"
+              >
+                {t('landing.getStartedNow')}
+              </Link>
+              <Link
+                to="/login"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-xl font-bold text-white bg-emerald-800 hover:bg-emerald-900 border border-emerald-600 transition"
+              >
+                {t('nav.demoLogin')}
+              </Link>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }

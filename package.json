@@ -12,8 +12,11 @@
     "server:test": "npm --prefix server test",
     "client:dev": "npm --prefix client run dev",
     "client:build": "npm --prefix client run build",
+    "build": "npm --prefix client run build",
+    "check:i18n": "npm --prefix client run check:i18n",
     "test": "npm --prefix server test",
     "check:secrets": "node scripts/check-secrets.js",
+    "translate:catalog": "npm --prefix server run translate:catalog",
     "verify": "npm --prefix server run verify"
   },
   "keywords": [

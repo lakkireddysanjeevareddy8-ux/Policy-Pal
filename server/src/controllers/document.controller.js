@@ -48,9 +48,10 @@ export async function getDocuments(req, res, next) {
       );
 
       const t = (doc.translations || {})[lang] || {};
+      const { translations: _dt, ...restDoc } = doc;
 
       return {
-        ...doc,
+        ...restDoc,
         label: t.label || (lang === 'te' && doc.label_te) || (lang === 'hi' && doc.label_hi) || doc.label,
         where_to_get: t.where_to_get || doc.where_to_get,
         schemes_count: schemesNeedingDoc.length,

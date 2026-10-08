@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
@@ -7,7 +7,7 @@ import { ShieldCheck, LogIn, Sparkles, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const { t } = useTranslation();
-  const { login, loginWithDemo } = useAuth();
+  const { login, loginWithDemo, isAuthenticated, loading: authLoading } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -23,6 +23,10 @@ export default function LoginPage() {
   useEffect(() => {
     document.title = `${t('nav.appName')} - ${t('auth.loginTitle')}`;
   }, [t]);
+
+  if (!authLoading && isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();

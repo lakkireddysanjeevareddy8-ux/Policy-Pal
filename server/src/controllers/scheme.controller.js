@@ -15,8 +15,10 @@ function localizeScheme(scheme, lang) {
   const translations = scheme.translations || {};
   const t = translations[lang] || {};
 
+  const { translations: _t, ...rest } = scheme;
+
   return {
-    ...scheme,
+    ...rest,
     name: t.name || (lang === 'te' && scheme.name_te) || (lang === 'hi' && scheme.name_hi) || scheme.name,
     benefit_summary: t.benefit_summary || scheme.benefit_summary,
     eligibility_summary: t.eligibility_summary || scheme.eligibility_summary,
@@ -147,8 +149,9 @@ export async function getSchemeBySlug(req, res, next) {
       );
       requiredDocs = docsRes.rows.map((doc) => {
         const t = (doc.translations || {})[lang] || {};
+        const { translations: _dt, ...restDoc } = doc;
         return {
-          ...doc,
+          ...restDoc,
           label: t.label || (lang === 'te' && doc.label_te) || (lang === 'hi' && doc.label_hi) || doc.label,
           where_to_get: t.where_to_get || doc.where_to_get,
         };

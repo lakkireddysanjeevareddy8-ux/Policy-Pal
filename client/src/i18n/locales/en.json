@@ -19,7 +19,7 @@
     "selectLanguage": "Select Language"
   },
   "landing": {
-    "heroBadge": "Verified Government Scheme AI Engine",
+    "heroBadge": "Curated Government Scheme AI Engine",
     "heroTitle": "Discover Government Schemes",
     "heroHighlight": "Made for You",
     "heroSubtitle": "Describe your situation in your mother tongue. PolicyPal uses Google Gemini to match you with central and state welfare schemes, track your shared documents, and provide step-by-step checklists.",
@@ -44,11 +44,14 @@
     "whyFeature3Desc": "Clear, grounded explanations of why you qualify and exact step-by-step checklists.",
     "whyFeature4Title": "Privacy First & Strict Security",
     "whyFeature4Desc": "Row-level database security, zero third-party tracking, and client-controlled session data.",
-    "trustedByCitizens": "Empowering citizens across all 28 States and 8 Union Territories",
+    "trustedByCitizens": "20 curated central and state schemes across 13 Indian languages",
     "ctaTitle": "Find Every Welfare Benefit You Deserve",
-    "ctaSubtitle": "Join thousands of citizens using PolicyPal to unlock agricultural subsidies, health coverage, student grants, and business loans.",
+    "ctaSubtitle": "Explore 20 curated central and state schemes across 13 Indian languages with document readiness tracked across schemes.",
     "getStartedNow": "Get Started Free",
-    "demoAccountPrompt": "Want to test instantly? Use our 1-click Demo Account."
+    "demoAccountPrompt": "Want to test instantly? Use our 1-click Demo Account.",
+    "statsCuratedSchemes": "Curated Central & State Schemes",
+    "statsDocumentTypes": "Essential Document Types",
+    "statsCrossSchemeSync": "Cross-Scheme Readiness Sync"
   },
   "auth": {
     "loginTitle": "Sign in to PolicyPal",
@@ -144,7 +147,7 @@
   },
   "scheme": {
     "title": "Government Scheme Catalog",
-    "subtitle": "Explore verified central and state government welfare schemes across India",
+    "subtitle": "Explore 20 curated central and state government welfare schemes across India",
     "searchPlaceholder": "Search schemes by keyword, benefit, or department...",
     "allCategories": "All Categories",
     "allLevels": "All Levels",
