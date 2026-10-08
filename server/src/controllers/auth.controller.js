@@ -1,12 +1,12 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { query } from '../db/index.js';
+import { getJwtSecret } from '../utils/jwt.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_secret_key_policypal_2026';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 
 function generateToken(userId) {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign({ userId }, getJwtSecret(), { expiresIn: JWT_EXPIRES_IN });
 }
 
 export async function register(req, res, next) {

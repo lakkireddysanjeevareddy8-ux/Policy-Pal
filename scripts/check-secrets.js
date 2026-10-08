@@ -111,6 +111,10 @@ const SECRET_PATTERNS = [
     name: 'Live Supabase/Postgres Connection with Production Password',
     regex: /postgres(?:ql)?:\/\/(?!postgres:password)[a-zA-Z0-9_\-]+:[a-zA-Z0-9_\-!#$%^&*]{8,}@db\.[a-z0-9\-]+\.supabase\.co/gi,
   },
+  {
+    name: 'Hardcoded Fallback JWT Secret',
+    regex: /fallback_development_secret_key/gi,
+  },
 ];
 
 const IGNORED_DIRS = new Set([

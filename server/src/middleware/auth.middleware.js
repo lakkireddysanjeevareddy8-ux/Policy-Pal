@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { query } from '../db/index.js';
+import { getJwtSecret } from '../utils/jwt.js';
 
 export async function requireAuth(req, res, next) {
   try {
@@ -15,7 +16,7 @@ export async function requireAuth(req, res, next) {
     }
 
     const token = authHeader.split(' ')[1];
-    const secret = process.env.JWT_SECRET || 'fallback_development_secret_key_policypal_2026';
+    const secret = getJwtSecret();
 
     let decoded;
     try {

@@ -2,11 +2,15 @@ import app from './app.js';
 import { runMigrations } from './db/migrate.js';
 import { runSeed } from './db/seed.js';
 import { getDb } from './db/index.js';
+import { getJwtSecret } from './utils/jwt.js';
 
 const PORT = process.env.PORT || 5000;
 
 async function bootstrap() {
   try {
+    // Validate JWT_SECRET on startup
+    getJwtSecret();
+
     console.log('🔄 Initializing database connection...');
     await getDb();
 
