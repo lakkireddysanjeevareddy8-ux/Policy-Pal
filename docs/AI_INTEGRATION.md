@@ -11,14 +11,14 @@ The engine executes a sequential three-step pipeline in `/server/src/services/ai
 
 ```mermaid
 flowchart LR
-    A["Raw Citizen Text (EN / TE / HI)"] --> B["Step 1: extractProfile()"]
+    A["Raw Citizen Text (13 Indian Languages)"] --> B["Step 1: extractProfile()"]
     B --> C["Structured Profile + Summary + Missing Questions"]
     C --> D["Step 2: matchSchemes()"]
     Catalog[("Curated Catalog (Compact JSON)")] --> D
     D --> E["Candidate Matches (Score >= 50, Max 8)"]
     E --> F["Server-Side ID Validation"]
     F --> G["Step 3: buildChecklistsForMatches()"]
-    G --> H["Personalized Checklists (4-7 steps) & Readiness Sync"]
+    G --> H["Personalized Checklists (4-7 steps) and Readiness Sync"]
 ```
 
 ### Step 1: `extractProfile(situationText, language)`

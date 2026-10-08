@@ -7,7 +7,7 @@ Across India, over 800 Central and State government welfare programs offer criti
 - **The Redundant Documentation Burden**: Every time a citizen applies for a scheme, they must re-verify which certificates they possess. A single document (like an Aadhaar Card or Bank Passbook) is shared by dozens of schemes, yet no existing portal tracks cross-scheme readiness.
 
 **PolicyPal** solves this by providing:
-1. Natural language voice/text input in **English, Telugu (తెలుగు), and Hindi (हिन्दी)**.
+1. Natural language voice/text input in **13 Indian languages (English, Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Gujarati, Bengali, Punjabi, Odia, Assamese, Urdu)**.
 2. AI-driven profile extraction and eligibility matching powered by **Google Gemini 2.5 Flash**.
 3. **The Shared Document Readiness Tracker**: Ticking a document as ready once instantly updates readiness percentages across *every* scheme requiring that certificate, highlighting the schemes closest to completion.
 
@@ -20,7 +20,7 @@ Across India, over 800 Central and State government welfare programs offer criti
   - Manages the unified Document Tracker (16 shared national document types).
   - Tracks application lifecycles: `saved` → `applying` → `applied` → `rejected` / `archived`.
 - **Public Explorer (Guest)**:
-  - Explores the public catalog of 20+ verified central and state schemes with instant search, category filtering, and level toggles.
+  - Explores the public catalog of 20 curated central and state schemes with instant search, category filtering, and level toggles.
   - Experiments with the interactive live Document Readiness Tracker demo on the landing page.
 - **PolicyPal Backend Service (Internal)**:
   - The single authorized database consumer connecting with secure service-level credentials.
@@ -35,14 +35,16 @@ graph TB
     subgraph ClientLayer ["Client Layer (React 19 + Vite + Tailwind CSS)"]
         SPA["Single Page Application (SPA)"]
         Router["React Router v7"]
-        AuthContext["Auth Context (JWT + Language: EN/TE/HI)"]
+        AuthContext["Auth Context (JWT + Language: 13 Indian Languages)"]
         AxiosClient["Axios Client (Bearer Interceptor + 401 Redirect)"]
-        SPA --> Router --> AuthContext --> AxiosClient
+        SPA --> Router
+        Router --> AuthContext
+        AuthContext --> AxiosClient
     end
 
-    subgraph SecurityLayer ["Security & Ingress Layer"]
+    subgraph SecurityLayer ["Security and Ingress Layer"]
         Helmet["Helmet (HTTP Security Headers)"]
-        CORS["CORS (Restricted to CLIENT_ORIGIN & Localhost)"]
+        CORS["CORS (Restricted to CLIENT_ORIGIN and Localhost)"]
         RateLimiter["Rate Limiters (Auth: 30/15m, AI: 20/15m)"]
         AuthMW["JWT Auth Middleware (Bearer Token Verification)"]
         ZodMW["Zod Request Validator (Body, Query, Params)"]
@@ -60,20 +62,25 @@ graph TB
     subgraph AIEngine ["AI Layer (Google Gemini)"]
         GeminiSDK["@google/genai SDK"]
         Model["gemini-2.5-flash (JSON Mode)"]
-        ZodAI["Zod AI Schema Validator & Retry Engine"]
+        ZodAI["Zod AI Schema Validator and Retry Engine"]
     end
 
     subgraph DataLayer ["Data Layer (Supabase PostgreSQL)"]
-        DB[(PostgreSQL Database)]
+        DB[("PostgreSQL Database")]
         RLS["Row Level Security (RLS: Enabled on All Tables)"]
         Triggers["updated_at Auto-Update Triggers"]
     end
 
-    AxiosClient -->|HTTPS REST| Helmet
-    Helmet --> CORS --> RateLimiter --> AuthMW --> ZodMW
+    AxiosClient -->|"HTTPS REST"| Helmet
+    Helmet --> CORS
+    CORS --> RateLimiter
+    RateLimiter --> AuthMW
+    AuthMW --> ZodMW
     ZodMW --> AuthController & ProfileController & SchemeController & DocumentController & MatchController & AssessmentController
-    AssessmentController <-->|JSON Mode Prompts| GeminiSDK <--> Model <--> ZodAI
-    ServerLayer <-->|pg Pool / SQL Queries scoped by user_id| DB
+    AssessmentController <-->|"JSON Mode Prompts"| GeminiSDK
+    GeminiSDK <--> Model
+    Model <--> ZodAI
+    ServerLayer <-->|"pg Pool / SQL Queries scoped by user_id"| DB
     DB --- RLS
     DB --- Triggers
 ```
@@ -99,7 +106,7 @@ erDiagram
         text email UK "Case-insensitive unique"
         text password_hash "Bcrypt cost 10+"
         text full_name
-        text preferred_language "en | te | hi"
+        text preferred_language "13 Indian languages"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -132,7 +139,7 @@ erDiagram
         text name_te "Telugu Name"
         text name_hi "Hindi Name"
         text ministry
-        text level "central | state"
+        text level "central or state"
         text state "Nullable, specified for state schemes"
         text category "agriculture, health, education, housing, finance, etc."
         text benefit_summary
@@ -171,7 +178,7 @@ erDiagram
         uuid id PK
         uuid user_id FK "FK to users(id) ON DELETE CASCADE"
         text situation_text "Max 2000 chars"
-        text language "en | te | hi"
+        text language "13 Indian languages"
         jsonb extracted_profile "Structured demographic facts"
         text ai_summary "Empathetic citizen summary"
         boolean archived "Default false"
@@ -187,7 +194,7 @@ erDiagram
         int match_score "0 to 100"
         text eligibility_reason "1-2 sentence justification"
         jsonb missing_info "Array of clarifying questions"
-        text status "saved | applying | applied | rejected | archived"
+        text status "saved, applying, applied, rejected, or archived"
         jsonb ai_checklist "Ordered array of {step, detail, done}"
         timestamptz created_at
         timestamptz updated_at
@@ -203,22 +210,22 @@ The following sequence diagram details the end-to-end processing of a citizen's 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Citizen as Citizen (Browser)
-    participant Client as React Client (Axios)
-    participant Gateway as Express Gateway & Middlewares
-    participant Cache as Assessment Cache (24h Window)
-    participant AI as Gemini Service (@google/genai)
-    participant DB as Supabase PostgreSQL
+    actor Citizen as "Citizen (Browser)"
+    participant Client as "React Client (Axios)"
+    participant Gateway as "Express Gateway and Middlewares"
+    participant Cache as "Assessment Cache (24h Window)"
+    participant AI as "Gemini Service (@google/genai)"
+    participant DB as "Supabase PostgreSQL"
 
-    Citizen->>Client: Enters situation in Telugu/Hindi/English & clicks "Find My Schemes"
-    Client->>Gateway: POST /api/assessments (Authorization: Bearer <JWT>)
+    Citizen->>Client: Enters situation in 13 Indian languages and clicks Find My Schemes
+    Client->>Gateway: POST /api/assessments (Authorization: Bearer JWT)
     Gateway->>Gateway: Rate limiter check (max 20 / 15 min)
     Gateway->>Gateway: Zod Schema validation (10 <= text.length <= 2000)
-    Gateway->>Gateway: JWT verification & user_id extraction
+    Gateway->>Gateway: JWT verification and user_id extraction
     
-    Gateway->>Cache: Query DB for identical situation_text & language within 24h
+    Gateway->>Cache: Query DB for identical situation_text and language within 24h
     alt Identical submission exists within 24 hours
-        Cache-->>Gateway: Return existing cached assessment & matches
+        Cache-->>Gateway: Return existing cached assessment and matches
     else Cache Miss (Fresh Evaluation)
         Gateway->>AI: 1. extractProfile(text, language) [Timeout: 25s]
         AI-->>Gateway: Returns structured facts, summary, missing questions
@@ -226,7 +233,7 @@ sequenceDiagram
         DB-->>Gateway: Catalog rows
         Gateway->>AI: 2. matchSchemes(profile, catalog, language)
         AI-->>Gateway: Candidate scheme IDs + scores + reasons
-        Gateway->>Gateway: Validate scheme IDs exist in catalog; drop unknown/hallucinations
+        Gateway->>Gateway: Validate scheme IDs exist in catalog and drop unknown or hallucinations
         Gateway->>AI: 3. buildChecklistsForMatches(profile, matches, language) [Concurrency Cap = 3]
         AI-->>Gateway: Personalized 4-7 step checklists
         Gateway->>DB: INSERT INTO assessments (...)
@@ -235,7 +242,7 @@ sequenceDiagram
     end
 
     Gateway->>DB: Compute document readiness from user_documents
-    DB-->>Gateway: Matched rows with required_documents & readiness_percent
+    DB-->>Gateway: Matched rows with required_documents and readiness_percent
     Gateway-->>Client: HTTP 201 { success: true, data: { assessment, matches } }
     Client-->>Citizen: Renders Assessment Result (Summary, Match Badges, Checklists)
 ```

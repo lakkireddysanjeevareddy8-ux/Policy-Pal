@@ -11,6 +11,15 @@
 
 ---
 
+## 🌐 Live Demo
+- **Frontend App**: [https://policy-pal-six.vercel.app](https://policy-pal-six.vercel.app)
+- **Backend API Health**: [https://policy-pal-tbti.onrender.com/health](https://policy-pal-tbti.onrender.com/health)
+- **Demo Credentials**:
+  - Email: `demo@policypal.app`
+  - Password: `Demo@12345`
+
+---
+
 ## 📚 Deliverable Documentation
 - 🏛️ **[System Architecture & Database Design Guide](docs/ARCHITECTURE.md)** — In-depth architectural blueprint, user personas, complete database schema, assessment sequence diagram, and Row Level Security (RLS) rationale.
 - 🤖 **[Gemini AI Integration & Security Architecture](docs/AI_INTEGRATION.md)** — Detailed breakdown of the 3-step pipeline (`extractProfile`, `matchSchemes`, `buildChecklist`), prompt hardening, Zod validation & backoff retry strategy, anti-hallucination catalog grounding, and secret safety.
@@ -26,7 +35,7 @@ Millions of Indian citizens—farmers, students, daily wage earners, and small e
 4. **The Redundancy Problem:** When applying for multiple schemes, citizens are repeatedly asked for the same core documents (Aadhaar, PAN, Bank Passbook, Land Records).
 
 **PolicyPal solves this:**
-- The citizen describes their life situation in natural language (**English, Telugu (తెలుగు), or Hindi (हिन्दी)**).
+- The citizen describes their life situation in natural language (**13 Indian languages (English, Hindi, Telugu, Tamil, Kannada, Malayalam, Marathi, Gujarati, Bengali, Punjabi, Odia, Assamese, Urdu)**).
 - **Google Gemini 2.5 Flash** parses the unstructured story into an economic profile and matches it against curated scheme rules.
 - **THE TWIST — Document Readiness Tracker:** Documents are shared across schemes. When a user marks "Aadhaar - ready" once, the readiness progress bar updates across *every single scheme* requiring Aadhaar. The citizen instantly sees which scheme is closest to being application-ready.
 
@@ -39,7 +48,7 @@ Millions of Indian citizens—farmers, students, daily wage earners, and small e
   - Manages unified document repository with cross-scheme synchronization.
   - Tracks application stages (`saved` → `applying` → `applied`).
 - **Guest / Public Explorer:**
-  - Browses the public catalog of 20+ verified central and state schemes with keyword search and category filters.
+  - Browses the public catalog of 20 curated central and state schemes with keyword search and category filters.
   - Tests the interactive live Document Readiness Tracker demonstration on the landing page.
 
 ---
@@ -49,43 +58,47 @@ Millions of Indian citizens—farmers, students, daily wage earners, and small e
 ```mermaid
 graph TD
     subgraph Client["Client (React + Vite + Tailwind CSS)"]
-        UI[User Interface / Multilingual EN-TE-HI]
-        AuthCtx[Auth Context & JWT Store]
-        DocTrackerUI[Shared Document Readiness Tracker]
-        AxiosClient[Axios with Bearer Interceptor]
+        UI["User Interface / Multilingual (13 Indian Languages)"]
+        AuthCtx["Auth Context and JWT Store"]
+        DocTrackerUI["Shared Document Readiness Tracker"]
+        AxiosClient["Axios with Bearer Interceptor"]
     end
 
     subgraph Gateway["Server (Node.js + Express)"]
-        SecMW[Helmet + CORS + Morgan]
-        RateLimiter[Express Rate Limiter: Auth & AI]
-        AuthMW[JWT Verification Middleware]
-        ZodValidator[Zod Schema Request Validation]
-        Router[REST API Router /api/*]
+        SecMW["Helmet + CORS + Morgan"]
+        RateLimiter["Express Rate Limiter: Auth and AI"]
+        AuthMW["JWT Verification Middleware"]
+        ZodValidator["Zod Schema Request Validation"]
+        Router["REST API Router /api/*"]
     end
 
     subgraph Database["Database (PostgreSQL / Supabase)"]
-        UsersTab[(users)]
-        ProfilesTab[(profiles)]
-        SchemesTab[(schemes - 20 Curated)]
-        DocTypesTab[(document_types - 16 Keys)]
-        UserDocsTab[(user_documents - Shared Tracker)]
-        AssessmentsTab[(assessments)]
-        MatchesTab[(scheme_matches)]
-        RLS[Row Level Security Enabled]
+        UsersTab[("users")]
+        ProfilesTab[("profiles")]
+        SchemesTab[("schemes - 20 Curated")]
+        DocTypesTab[("document_types - 16 Keys")]
+        UserDocsTab[("user_documents - Shared Tracker")]
+        AssessmentsTab[("assessments")]
+        MatchesTab[("scheme_matches")]
+        RLS["Row Level Security Enabled"]
     end
 
     subgraph AI["Google GenAI Service"]
-        GeminiSDK[@google/genai SDK]
+        GeminiSDK["@google/genai SDK"]
         Model["gemini-2.5-flash (JSON Mode)"]
-        ZodAISchema[Zod AI Response Validation]
+        ZodAISchema["Zod AI Response Validation"]
     end
 
     UI --> AxiosClient
-    AxiosClient -->|HTTP / JSON| SecMW
-    SecMW --> RateLimiter --> AuthMW --> ZodValidator --> Router
-    Router -->|pg Pool / SQL Scoped by user_id| Database
-    Router -->|extractProfile / matchSchemes / buildChecklist| GeminiSDK
-    GeminiSDK --> Model --> ZodAISchema
+    AxiosClient -->|"HTTP / JSON"| SecMW
+    SecMW --> RateLimiter
+    RateLimiter --> AuthMW
+    AuthMW --> ZodValidator
+    ZodValidator --> Router
+    Router -->|"pg Pool / SQL Scoped by user_id"| Database
+    Router -->|"extractProfile / matchSchemes / buildChecklist"| GeminiSDK
+    GeminiSDK --> Model
+    Model --> ZodAISchema
 ```
 
 ---
