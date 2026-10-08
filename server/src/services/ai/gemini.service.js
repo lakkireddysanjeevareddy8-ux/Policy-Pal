@@ -121,7 +121,7 @@ async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description 
 
       // Auto-unwrap array if returned inside an object wrapper (e.g. { matches: [...] })
       if (
-        (description === 'matchSchemes' || description === 'buildChecklist') &&
+        (description.startsWith('matchSchemes') || description.startsWith('buildChecklist')) &&
         !Array.isArray(parsedJson) &&
         typeof parsedJson === 'object' &&
         parsedJson !== null
