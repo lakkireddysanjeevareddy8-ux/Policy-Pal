@@ -77,7 +77,7 @@ export async function sendMessage(req, res, next) {
       userId,
       conversationId,
       userMessage: cleanMessage,
-      uiLanguage,
+      uiLanguage: ui_language,
       wasRedacted,
     });
 
