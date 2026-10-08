@@ -63,7 +63,7 @@ export async function transcribeAudio({ buffer, mimeType, hintLanguage = 'en' })
   const base64Data = buffer.toString('base64');
   const modelsToTry = [
     process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
-    process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash',
+    process.env.GEMINI_FALLBACK_MODEL || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
   ];
 
   let lastError = null;

@@ -20,6 +20,9 @@ import ProfilePage from './pages/ProfilePage.jsx';
 import BrowseSchemesPage from './pages/BrowseSchemesPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
 
+// Lazy loaded Chat Assistant
+const PolicyPalAssistant = React.lazy(() => import('./components/chat/PolicyPalAssistant.jsx'));
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -91,6 +94,9 @@ export default function App() {
               </Routes>
             </main>
             <Footer />
+            <React.Suspense fallback={null}>
+              <PolicyPalAssistant />
+            </React.Suspense>
           </div>
         </ToastProvider>
       </AuthProvider>

@@ -174,7 +174,7 @@ Respond as PolicyPal Assistant following all system rules. Output strictly valid
 
   const modelsToTry = [
     process.env.GEMINI_CHAT_MODEL || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
-    process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash',
+    process.env.GEMINI_FALLBACK_MODEL || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
   ];
 
   let lastError = null;

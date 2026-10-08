@@ -13,7 +13,7 @@ import {
 
 export function getGeminiModel(isFallback = false) {
   if (isFallback) {
-    return process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash';
+    return process.env.GEMINI_FALLBACK_MODEL || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   }
   return process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 }

@@ -334,6 +334,54 @@ All endpoints return `{ success: true, data: ... }` or `{ success: false, error:
 ### Dashboard
 - `GET /api/dashboard` - Stats (`total_matches`, `applications_in_progress`, `overall_document_readiness_percent`, `top_closest_to_ready_schemes`)
 
+### Multimodal Voice Transcription
+- `POST /api/voice/transcribe` - Verbatim native script speech-to-text via Gemini (auth required, multipart/base64, max 1.5MB, in-memory processing only, PII redaction)
+
+### Multilingual PolicyPal Assistant (Chatbot)
+- `POST /api/chat` - Send citizen inquiry, receive grounded reply, action buttons & followups
+- `GET /api/chat/conversations` - List conversations for user (supports search `q`)
+- `GET /api/chat/conversations/:id` - Retrieve conversation history & messages
+- `PATCH /api/chat/conversations/:id` - Rename or archive conversation
+- `DELETE /api/chat/conversations/:id` - Delete conversation & messages
+
+---
+
+## 🎙️ Multimodal Voice Input & PolicyPal Assistant
+
+### 1. Dual-Path Voice Input Foundation
+- **Primary Engine**: Browser Web Speech API (`webkitSpeechRecognition` / `SpeechRecognition`) with continuous capture and live interim feedback.
+- **Fallback Engine**: Automated switch to `MediaRecorder` + backend Gemini multimodal audio transcription when browser speech recognition is unavailable or restricted.
+- **Microphone on Situation Textarea & Profile Notes**: Located in the corner of the situation box on New Assessment and Profile Notes; appends transcribed sentences non-destructively without overwriting existing text.
+- **Speaking Language Synchronizer**: Displays dynamic native indicator (`Speaking in: తెలుగు / हिन्दी / English`) synced with the chosen evaluation language.
+
+### 2. Voice-Enabled Multilingual Assistant ("PolicyPal Assistant")
+- **Lazy-Loaded Interface**: `React.lazy` floating assistant available on all authenticated pages; renders as an ergonomic bottom sheet on 375px mobile screens.
+- **Grounded AI Guidance**: Grounded strictly on the citizen's profile, top scheme matches, readiness percentages, and compact 20-scheme catalog.
+- **Action Navigation**: AI responses include verified next-step action buttons (`open_scheme`, `open_documents`, `start_assessment`, `open_applications`) that route internally with React Router.
+- **Client-Side Speech Output**: Native browser synthesis (`window.speechSynthesis`) reading replies in native Indic speech without calling external TTS APIs.
+- **Conversation Management**: Searchable chat history, instant new session button, and deletion.
+
+### 3. Voice Languages Actually Tested Live
+During Phase 5 verification, the following languages were verified with live Gemini API requests:
+- 🇬🇧 **English (`en-IN`)**: Verified PM-KISAN documentation queries, catalog grounding, and injection defense.
+- 🇮🇳 **Telugu (`te-IN`)**: Verified verbatim Telugu script output (`పీఎం-కిసాన్ పథకానికి ఆధార్ కార్డ్, భూమి రికార్డులు...`).
+- 🇮🇳 **Hindi (`hi-IN`)**: Verified Devanagari script output (`पीएम-किसान योजना के लिए आधार कार्ड, भूमि रिकॉर्ड...`).
+- 🇮🇳 **Tamil (`ta-IN`)**: Verified Tamil script output (`பிஎம்-கிசான் திட்டத்திற்கு ஆதார் அட்டை, நில ஆவணங்கள்...`).
+- All 13 supported Indic codes (`en-IN`, `hi-IN`, `te-IN`, `ta-IN`, `kn-IN`, `ml-IN`, `mr-IN`, `gu-IN`, `bn-IN`, `pa-IN`, `or-IN`, `as-IN`, `ur-IN`) are configured in `speechLanguages.js`.
+
+### 4. Browser Support & Compatibility
+| Browser | Web Speech API | MediaRecorder Fallback | Speech Synthesis |
+| :--- | :---: | :---: | :---: |
+| **Google Chrome / Chromium** | ✅ Native | ✅ Supported | ✅ Native |
+| **Microsoft Edge** | ✅ Native | ✅ Supported | ✅ Native |
+| **Mozilla Firefox** | ⚠️ Fallback to Server | ✅ Automatic Fallback | ✅ Native |
+| **Apple Safari (macOS / iOS)** | ⚠️ Fallback to Server | ✅ Automatic Fallback | ✅ Native |
+
+### 5. Privacy Guarantee & Limitations
+- **Audio Never Stored**: Audio input is held strictly in volatile RAM memory buffer during transcription and immediately discarded. No audio is ever written to disk or database.
+- **Automatic PII Redaction**: 12-digit Aadhaar numbers, PAN patterns, OTPs, and bank account numbers are scrubbed in memory into `[REDACTED]` prior to AI submission or database persistence.
+- **Secure Context Requirement**: Microphone access requires HTTPS (or `localhost`). If accessed over plain HTTP, voice buttons cleanly hide and display a privacy note.
+
 ---
 
 ## 🚢 Production Deployment

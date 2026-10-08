@@ -192,7 +192,62 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+
+    chat_conversations {
+        uuid id PK "gen_random_uuid()"
+        uuid user_id FK "REFERENCES users(id) ON DELETE CASCADE"
+        text title "First user message truncated to 60 chars"
+        text language "en, hi, te, etc."
+        boolean archived "Default false"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    chat_messages {
+        uuid id PK "gen_random_uuid()"
+        uuid conversation_id FK "REFERENCES chat_conversations(id) ON DELETE CASCADE"
+        uuid user_id FK "REFERENCES users(id) ON DELETE CASCADE"
+        text role "user | assistant"
+        text content "Redacted message content"
+        text detected_language "en, te, hi, ta, etc."
+        text input_mode "text | voice"
+        jsonb actions "Array of {type, slug, label}"
+        timestamptz created_at
+        timestamptz updated_at
+    }
 ```
+
+---
+
+## 4.1 Voice Input Architecture & Processing Pipeline
+
+PolicyPal implements a robust dual-path voice capture foundation (`useSpeechToText` and `VoiceInputButton`):
+1. **Primary Path (Web Speech API)**:
+   - Evaluates `window.SpeechRecognition || window.webkitSpeechRecognition`.
+   - Continuous and interim recognition using the unified Indian BCP-47 speech map (`speechLanguages.js`: `te-IN`, `hi-IN`, `ta-IN`, etc.).
+   - Appends final transcribed text non-destructively to the end of user input with a 60-second automatic safety cutoff.
+2. **Fallback Path (MediaRecorder + Backend Multimodal Gemini)**:
+   - Activates automatically on browsers lacking Web Speech API (e.g. Firefox) or upon permission/network/language failure.
+   - Captures up to 30 seconds of audio via `MediaRecorder` in supported formats (`audio/webm`, `audio/mp4`, `audio/ogg`).
+   - Streams audio strictly in-memory (`multer.memoryStorage()`) to `POST /api/voice/transcribe`.
+   - Gemini models transcribe verbatim in native script without translation or storage.
+   - PII scrubbing utility (`redact.js`) redacts 12-digit Aadhaar, PAN, OTP, and bank accounts prior to returning text.
+
+---
+
+## 4.2 PolicyPal Assistant (Multilingual Chat Flow)
+
+The authenticated floating AI Assistant operates on a strictly grounded, isolated architecture:
+1. **Zero Client-Side API Exposure**: The client never contacts Gemini or Google APIs directly; all requests flow through `POST /api/chat` with rate limiting (30 requests / 10 minutes) and JWT auth.
+2. **Grounded Server Context**: Every request compiles:
+   - The citizen's canonical profile fields.
+   - The citizen's top 5 scheme matches with readiness scores and missing documents.
+   - The compact catalog of 20 verified schemes with official portal URLs.
+   - Strictly the last 8 messages of the active conversation.
+3. **Prompt Injection & Hallucination Defense**:
+   - Out-of-catalog inquiries explicitly point to official government portals (`https://myscheme.gov.in` and `https://india.gov.in`).
+   - User action recommendations are validated server-side against catalog slugs before delivery.
+   - Client-side speech synthesis uses `window.speechSynthesis` with native Indic voices without transmitting audio.
 
 ---
 

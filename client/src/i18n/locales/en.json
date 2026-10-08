@@ -223,7 +223,8 @@
     "saveProfile": "Save Profile",
     "memberSince": "Member since {{date}}",
     "editProfile": "Edit Details",
-    "autoExtractedNotice": "These details were automatically extracted by AI from your latest assessment and can be updated anytime."
+    "autoExtractedNotice": "These details were automatically extracted by AI from your latest assessment and can be updated anytime.",
+    "notes": "Notes"
   },
   "status": {
     "all": "All Statuses",
@@ -299,6 +300,64 @@
     "selectLanguage": "Select Language",
     "pageNotFound": "Page Not Found",
     "pageNotFoundDesc": "The page you are looking for does not exist or has been moved.",
-    "backToHome": "Back to Home"
+    "backToHome": "Back to Home",
+    "dismiss": "Dismiss"
+  },
+  "voice": {
+    "start_listening": "Voice input",
+    "stop_listening": "Stop listening",
+    "click_to_stop": "Click to finish speaking",
+    "listening": "Listening",
+    "press_to_stop": "Press again to stop",
+    "processing": "Converting speech to text...",
+    "success": "Voice input added",
+    "error_prefix": "Voice error",
+    "error_title": "Voice Input Note",
+    "insecure_context": "Voice input requires HTTPS or localhost.",
+    "speaking_in": "Speaking in",
+    "change_language_above": "change language above",
+    "hearing": "Hearing",
+    "provisional": "Hearing",
+    "speak_in": "Speak in",
+    "privacy_info": "Voice privacy information",
+    "privacy_title": "Voice Privacy",
+    "privacy_notice": "Voice is converted to text by your browser's speech service, or by our server if your browser cannot do it. Audio is not saved.",
+    "how_to_allow_mic": "Click the lock or tune icon beside the URL in your browser bar and allow Microphone.",
+    "fallback_active": "Using server-assisted audio fallback.",
+    "errors": {
+      "permission_denied": "Microphone permission denied. Please allow microphone access in your browser settings.",
+      "no_speech": "No speech detected. Please speak clearly into your microphone.",
+      "no_microphone": "No microphone found on this device.",
+      "network_error": "Network error while connecting to speech recognition.",
+      "language_unsupported": "This language is not supported by your browser's built-in engine. Switching to server fallback.",
+      "service_unavailable": "Voice service is currently unavailable. Please try typing.",
+      "too_long": "Audio recording exceeds the 30-second limit."
+    }
+  },
+  "chat": {
+    "open_assistant": "Open PolicyPal Assistant",
+    "assistant_title": "PolicyPal Assistant",
+    "assistant_subtitle": "Multilingual Welfare Guide",
+    "welcome_title": "How can I assist you today?",
+    "welcome_desc": "Ask me about government schemes, document readiness, or application steps.",
+    "suggested_questions": "Suggested inquiries",
+    "starter_eligibility": "What schemes am I eligible for?",
+    "starter_documents": "Which documents am I missing?",
+    "starter_pmkisan": "How do I apply for PM-KISAN?",
+    "actions_label": "Recommended Action",
+    "followups_label": "Suggested Questions",
+    "input_placeholder": "Ask a question or speak...",
+    "disclaimer": "AI answers can be wrong. Verify on the official portal. Do not share Aadhaar, OTP or bank details.",
+    "conversation_history": "Conversation history",
+    "search_history": "Search conversations...",
+    "no_conversations": "No conversations yet.",
+    "new_chat": "Start new chat",
+    "voice_replies": "Voice replies",
+    "enable_voice": "Read replies aloud",
+    "mute_voice": "Turn off voice replies",
+    "read_aloud": "Read aloud",
+    "assistant_thinking": "PolicyPal Assistant is responding...",
+    "unavailable_error": "PolicyPal Assistant is temporarily unavailable. Please try again in a few moments.",
+    "no_voice_available": "Voice is not available for this language on your device; text only."
   }
 }

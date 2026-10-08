@@ -101,3 +101,74 @@ To guarantee zero runtime crashes and strict data integrity:
   - Placeholder files (`/server/.env.example` and `/client/.env.example`) contain only dummy placeholders (`your_gemini_api_key_here`, `http://localhost:5000/api`).
 - **Build Scanning**:
   - `npm run check:secrets` scans the entire repository and production client bundles (`client/dist`) to assert that zero private keys, JWT secrets, or database URLs leak into client distribution assets.
+
+---
+
+## 6. Multimodal Voice Transcription Engine (`voice.service.js`)
+
+PolicyPal uses Gemini multimodal audio capabilities on the backend to provide server-assisted transcription for browsers lacking native SpeechRecognition (e.g., Firefox, older Safari, or non-Chrome environments).
+
+### Transcription System Prompt & Rules
+```javascript
+export const TRANSCRIPTION_SYSTEM_INSTRUCTION = `You are a high-accuracy multilingual speech-to-text transcription engine for PolicyPal, an Indian public welfare discovery platform.
+YOUR SOLE TASK: Transcribe the spoken audio recording VERBATIM into text, using the language and script actually spoken by the citizen.
+CRITICAL INSTRUCTIONS:
+1. NATIVE SCRIPT PURITY:
+   - Telugu speech MUST be transcribed in Telugu script (తెలుగు లిపి).
+   - Hindi speech MUST be transcribed in Devanagari script (देवनागरी).
+   - Tamil speech MUST be transcribed in Tamil script (தமிழ் எழுத்துக்கள்).
+   - Kannada speech MUST be transcribed in Kannada script (ಕನ್ನಡ ಲಿపి).
+   - Malayalam speech MUST be transcribed in Malayalam script (മലയാള ലിപി).
+   - Marathi speech MUST be transcribed in Devanagari script (देवनागरी).
+   - Gujarati speech MUST be transcribed in Gujarati script (ગુજરાતી લિપિ).
+   - Bengali speech MUST be transcribed in Bengali script (বাংলা লিপি).
+   - Punjabi speech MUST be transcribed in Gurmukhi script (ਗੁਰਮੁਖੀ ਲਿਪੀ).
+   - Odia speech MUST be transcribed in Odia script (ଓଡ଼ିଆ ଲିପି).
+   - Assamese speech MUST be transcribed in Assamese script (অসমীয়া লিপি).
+   - Urdu speech MUST be transcribed in Urdu Nastaliq/Arabic script (اردو رسم الخط).
+   - English speech MUST be transcribed in English (Latin alphabet).
+2. VERBATIM ACCURACY: Do NOT translate, do NOT summarize, do NOT correct grammar, do NOT answer questions, and do NOT add any conversational pleasantries.
+3. SILENCE / UNINTELLIGIBLE SPEECH: If there is no clear human speech, only background noise, or silence, return an empty string for transcript ("").
+4. JSON RESPONSE: Return strictly a valid JSON object with { transcript, language }.`;
+```
+
+### Zero Audio Storage Guarantee
+- **In-Memory Buffering**: Audio is accepted via `multer.memoryStorage()` or base64 JSON payload directly into Node.js `Buffer` objects in memory.
+- **Never Written to Disk**: No temporary audio files are written to `/tmp`, local disk, or cloud object storage.
+- **Immediate Garbage Collection**: Audio buffers are dereferenced immediately after the Gemini API call completes.
+
+### Sensitive Data Redaction (`redact.js`)
+Before transcripts are stored in the database or passed into subsequent processing, they pass through `redactSensitiveInfo()`:
+- 12-digit Aadhaar numbers (continuous, spaced, or hyphenated) -> `[REDACTED]`
+- PAN patterns (`[A-Za-z]{5}[0-9]{4}[A-Za-z]`) -> `[REDACTED]`
+- OTP patterns (4-8 digits preceded by `otp`, `code`, or `verification code`) -> `[REDACTED]`
+- Bank account numbers (9-18 continuous digits) -> `[REDACTED]`
+
+---
+
+## 7. PolicyPal Assistant Chat Service (`chat.service.js`)
+
+The chat service provides real-time, multilingual, grounded assistance to authenticated citizens.
+
+### Grounded Context Construction
+For every message, the server assembles a compact context object:
+1. **User Profile**: Canonical demographic data from `profiles`.
+2. **Top Matches & Readiness**: Top 5 scheme matches, with missing documents calculated against the user's ready documents.
+3. **Compact Catalog**: Curated list of 20 schemes with official government portal URLs.
+4. **History Window**: Strictly limited to the last 8 messages of the conversation to control token usage and prevent prompt pollution.
+
+### Output Schema & Action Validation
+Gemini is configured in JSON mode with `GeminiChatOutputSchema`:
+```typescript
+{
+  reply: string;
+  language: 'en' | 'hi' | 'te' | 'ta' | 'kn' | 'ml' | 'mr' | 'gu' | 'bn' | 'pa' | 'or' | 'as' | 'ur';
+  followups: string[]; // Max 3
+  actions: Array<{
+    type: 'open_scheme' | 'open_documents' | 'start_assessment' | 'open_applications';
+    slug?: string;
+    label: string;
+  }>;
+}
+```
+**Server-Side Action Filtering**: The backend validates that any `open_scheme` action references a verified slug existing in the database catalog. Unknown or hallucinated slugs are stripped out before returning the response.
