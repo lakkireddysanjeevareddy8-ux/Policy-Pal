@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext.jsx';
 import { SUPPORTED_LANGUAGES } from '../i18n/languages.js';
 import { changeLanguage } from '../i18n/index.js';
 import { User, Save, Loader2, Globe } from 'lucide-react';
+import VoiceInputButton from '../components/VoiceInputButton.jsx';
 
 export default function ProfilePage() {
   const { t, i18n } = useTranslation();
@@ -371,17 +372,45 @@ export default function ProfilePage() {
 
           {/* Notes */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-              {t('assessment.detail')}
-            </label>
-            <textarea
-              rows={3}
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              placeholder={t('profile.autoExtractedNotice')}
-              className="w-full p-3.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                {t('assessment.detail')} / {t('profile.notes', 'Notes')}
+              </label>
+              <span className="text-xs text-slate-400">
+                {t('voice.speak_in', 'Speak in')} {SUPPORTED_LANGUAGES.find((l) => l.code === (i18n.language || 'en'))?.nativeName || 'English'}
+              </span>
+            </div>
+            <div className="relative">
+              <textarea
+                rows={3}
+                name="notes"
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder={t('profile.autoExtractedNotice')}
+                className="w-full p-3.5 pe-14 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <div className="absolute top-2.5 end-2.5">
+                <VoiceInputButton
+                  language={i18n.language || 'en'}
+                  onText={(text, { isFinal }) => {
+                    if (isFinal) {
+                      setFormData((prev) => {
+                        const cleaned = text.trim();
+                        if (!cleaned) return prev;
+                        const current = prev.notes || '';
+                        const needsSpace = current.length > 0 && !current.endsWith(' ') && !current.endsWith('\n');
+                        return {
+                          ...prev,
+                          notes: `${current}${needsSpace ? ' ' : ''}${cleaned}`,
+                        };
+                      });
+                    }
+                  }}
+                  disabled={saving}
+                  size="sm"
+                />
+              </div>
+            </div>
           </div>
 
           <div className="flex justify-end">

@@ -13,6 +13,8 @@ import documentRoutes from './routes/document.routes.js';
 import matchRoutes from './routes/match.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import assessmentRoutes from './routes/assessment.routes.js';
+import voiceRoutes from './routes/voice.routes.js';
+import chatRoutes from './routes/chat.routes.js';
 import { notFoundHandler, centralErrorHandler } from './middleware/error.middleware.js';
 import { apiLimiter } from './middleware/rateLimiter.middleware.js';
 
@@ -64,8 +66,8 @@ app.use(
 );
 
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
 // Global Rate Limiter
 app.use('/api', apiLimiter);
@@ -91,6 +93,8 @@ app.use('/api/documents', documentRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/assessments', assessmentRoutes);
+app.use('/api/voice', voiceRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Catch 404
 app.use(notFoundHandler);

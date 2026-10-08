@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../api/client.js';
 import { useToast } from '../context/ToastContext.jsx';
-import { SUPPORTED_LANGUAGES } from '../i18n/languages.js';
+import { SUPPORTED_LANGUAGES, getLanguageConfig } from '../i18n/languages.js';
+import VoiceInputButton from '../components/VoiceInputButton.jsx';
 import {
   Sparkles,
   Loader2,
@@ -22,8 +23,27 @@ export default function NewAssessmentPage() {
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState(1);
   const [errorMsg, setErrorMsg] = useState('');
+  const [interimVoiceText, setInterimVoiceText] = useState('');
 
   const MAX_CHARS = 2000;
+
+  const handleVoiceText = (text, { isFinal }) => {
+    if (isFinal) {
+      setInterimVoiceText('');
+      setSituationText((prev) => {
+        const cleaned = text.trim();
+        if (!cleaned) return prev;
+        if (!prev || prev.trim() === '') {
+          return cleaned.slice(0, MAX_CHARS);
+        }
+        const needsSpace = !prev.endsWith(' ') && !prev.endsWith('\n');
+        const appended = `${prev}${needsSpace ? ' ' : ''}${cleaned}`;
+        return appended.slice(0, MAX_CHARS);
+      });
+    } else {
+      setInterimVoiceText(text);
+    }
+  };
 
   useEffect(() => {
     document.title = `${t('nav.appName')} - ${t('assessment.newCheckTitle')}`;
@@ -177,7 +197,7 @@ export default function NewAssessmentPage() {
             </div>
           </div>
 
-          {/* Textarea Input */}
+          {/* Textarea Input with Voice Button */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -194,15 +214,46 @@ export default function NewAssessmentPage() {
               </span>
             </div>
 
-            <textarea
-              rows={7}
-              required
-              disabled={loading}
-              value={situationText}
-              onChange={(e) => setSituationText(e.target.value)}
-              placeholder={t('assessment.promptPlaceholder')}
-              className="w-full p-4 rounded-2xl border border-slate-300 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-inner resize-y"
-            />
+            <div className="relative">
+              <textarea
+                rows={7}
+                required
+                disabled={loading}
+                value={situationText}
+                onChange={(e) => setSituationText(e.target.value)}
+                placeholder={t('assessment.promptPlaceholder')}
+                className="w-full p-4 pe-14 rounded-2xl border border-slate-300 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition shadow-inner resize-y"
+              />
+              <div className="absolute top-3 end-3">
+                <VoiceInputButton
+                  language={assessmentLang || i18n.language || 'en'}
+                  onText={handleVoiceText}
+                  disabled={loading}
+                  maxChars={MAX_CHARS}
+                />
+              </div>
+            </div>
+
+            {/* Speaking hint under the box */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs text-slate-500 pt-1">
+              <p className="flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>
+                  {t('voice.speaking_in', 'Speaking in')}:{' '}
+                  <strong className="text-slate-800 font-bold">
+                    {getLanguageConfig(assessmentLang || i18n.language || 'en').nativeName}
+                  </strong>{' '}
+                  <span className="text-slate-400">
+                    ({t('voice.change_language_above', 'change language above')})
+                  </span>
+                </span>
+              </p>
+              {interimVoiceText && (
+                <p className="text-xs italic text-blue-600 animate-pulse">
+                  {t('voice.hearing', 'Hearing')}: "{interimVoiceText}"
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Loading Stage Display */}
