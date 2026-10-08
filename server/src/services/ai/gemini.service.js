@@ -13,9 +13,9 @@ import {
 
 export function getGeminiModel(isFallback = false) {
   if (isFallback) {
-    return process.env.GEMINI_FALLBACK_MODEL || process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+    return process.env.GEMINI_FALLBACK_MODEL || 'gemini-3.5-flash';
   }
-  return process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+  return process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 }
 
 function getAiClient() {
@@ -87,15 +87,21 @@ async function callGeminiWithRetry({ prompt, zodSchema, jsonSchema, description 
         },
       });
 
-      // 25-second timeout protection
+      // Configurable timeout protection (defaults to 45 seconds)
+      const timeoutMs = parseInt(process.env.AI_REQUEST_TIMEOUT_MS, 10) || 45000;
+      let timeoutId;
       const timeoutPromise = new Promise((_, reject) => {
-        const id = setTimeout(() => {
-          clearTimeout(id);
-          reject(new Error('AI request timed out after 25 seconds'));
-        }, 25000);
+        timeoutId = setTimeout(() => {
+          reject(new Error(`AI request timed out after ${timeoutMs / 1000} seconds`));
+        }, timeoutMs);
       });
 
-      const response = await Promise.race([generatePromise, timeoutPromise]);
+      let response;
+      try {
+        response = await Promise.race([generatePromise, timeoutPromise]);
+      } finally {
+        if (timeoutId) clearTimeout(timeoutId);
+      }
 
       const responseText = response.text || '';
       let parsedJson;

@@ -96,7 +96,8 @@ Deploy the backend on [Render](https://render.com).
   | `JWT_SECRET` | Strong 64-character cryptographic string |
   | `JWT_EXPIRES_IN` | `7d` |
   | `GEMINI_API_KEY` | Google Gemini API key |
-  | `GEMINI_MODEL` | `gemini-2.5-flash` |
+  | `GEMINI_MODEL` | `gemini-3.8-flash` |
+  | `AI_REQUEST_TIMEOUT_MS` | `45000` (Configurable timeout for Gemini inference) |
   | `CLIENT_ORIGIN` | `https://<your-app>.vercel.app` |
 
 Once deployed, test the health check endpoint:
